@@ -12,7 +12,7 @@
 <!-- ===== PROJECT TABS ===== -->
 <div class="project-tabs" id="projectTabs">
   {% for p in all_projects %}
-  <div class="project-tab{% if p.id == project.id %} active{% endif %}" title="{{ p.name }}">
+  <div class="project-tab{% if p.id == project.id %} active{% endif %}" data-id="{{ p.id }}" title="{{ p.name }}">
     <a href="/project/{{ p.id }}" class="tab-link">
       <span class="tab-dot" style="background:{{ ['#ef4444','#3b82f6','#a855f7','#22c55e','#f59e0b','#06b6d4','#f97316','#ec4899'][loop.index0 % 8] }}"></span>
       <span class="tab-name">{{ p.name }}</span>
@@ -440,13 +440,39 @@
     });
   });
 
-  // Tab close buttons — chiude solo il tab, non elimina il progetto
+  // Tab close — persiste lo stato su localStorage
+  const HIDDEN_KEY = 'dbml_hidden_tabs';
+
+  function getHidden() {
+    try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); }
+    catch { return []; }
+  }
+  function addHidden(id) {
+    const h = getHidden();
+    if (!h.includes(id)) { h.push(id); localStorage.setItem(HIDDEN_KEY, JSON.stringify(h)); }
+  }
+  function removeHidden(id) {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(getHidden().filter(x => x !== id)));
+  }
+
+  // Al caricamento: mostra sempre il progetto corrente, nasconde i tab chiusi
+  (function applyHidden() {
+    removeHidden('{{ project.id }}');
+    const hidden = getHidden();
+    document.querySelectorAll('.project-tab[data-id]').forEach(tab => {
+      if (hidden.includes(tab.dataset.id)) tab.remove();
+    });
+  })();
+
   document.querySelectorAll('.tab-close').forEach(btn => {
-    btn.addEventListener('click', e => {
+    btn.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
       const tab    = btn.closest('.project-tab');
+      const id     = tab.dataset.id;
       const active = btn.dataset.active === 'true';
+      addHidden(id);
       if (active) {
         const tabs = [...document.querySelectorAll('.project-tab:not(.project-tab-new)')];
         const idx  = tabs.indexOf(tab);
