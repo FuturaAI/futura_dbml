@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DBML Docs</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="index-page">
+
+  <div class="index-header">
+    <div class="logo">
+      <span class="logo-icon">&#9646;&#9646;</span>
+      <span class="logo-text">DBML Docs</span>
+    </div>
+  </div>
+
+  <div class="index-body">
+
+    <!-- Upload card -->
+    <div class="upload-card">
+      <h1>Documenta il tuo database</h1>
+      <p class="subtitle">Carica un file <code>.dbml</code> per generare diagrammi e documentazione interattiva</p>
+
+      {% if error %}
+      <div class="alert alert-error">
+        <strong>Errore nel parsing:</strong> {{ error }}
+      </div>
+      {% endif %}
+
+      <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+        <div class="form-group">
+          <label for="name">Nome progetto</label>
+          <input type="text" id="name" name="name" placeholder="es. Ecommerce, CRM, ..." required />
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-zone-inner">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+            <p id="dropText">Trascina il file <code>.dbml</code> qui<br/>oppure <span class="link-text">clicca per scegliere</span></p>
+            <p id="fileName" class="file-name hidden"></p>
+          </div>
+          <input type="file" id="file" name="file" accept=".dbml,.txt" required class="file-input" />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Carica e genera documentazione</button>
+      </form>
+    </div>
+
+    <!-- Projects list -->
+    {% if projects %}
+    <div class="projects-section">
+      <h2>Progetti recenti</h2>
+      <div class="projects-grid">
+        {% for p in projects %}
+        <a href="/project/{{ p.id }}" class="project-card">
+          <div class="project-card-header">
+            <div class="project-icon">{{ p.name[0] | upper }}</div>
+            <div class="project-meta">
+              <div class="project-name">{{ p.name }}</div>
+              <div class="project-stats">
+                {{ p.tables | length }} tabelle &middot;
+                {{ p.groups | length }} gruppi &middot;
+                {{ p.refs | length }} relazioni
+              </div>
+            </div>
+          </div>
+          <div class="project-groups">
+            {% for g in p.groups %}
+            <span class="group-tag">{{ g }}</span>
+            {% endfor %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('file');
+    const dropText = document.getElementById('dropText');
+    const fileName = document.getElementById('fileName');
+
+    dropZone.addEventListener('click', (e) => {
+      if (e.target === fileInput) return; // il click è già sull'input, non duplicare
+      fileInput.click();
+    });
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) setFile(f);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    function setFile(f) {
+      // Transfer to the real input
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      fileInput.files = dt.files;
+
+      dropText.classList.add('hidden');
+      fileName.textContent = f.name;
+      fileName.classList.remove('hidden');
+      dropZone.classList.add('has-file');
+
+      // Auto-fill project name if empty
+      const nameInput = document.getElementById('name');
+      if (!nameInput.value) {
+        nameInput.value = f.name.replace(/\.dbml$/i, '');
+      }
+    }
+  </script>
+</body>
+</html>

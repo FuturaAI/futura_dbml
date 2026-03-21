@@ -1,0 +1,146 @@
+"""FastAPI application — DBML Docs."""
+import json
+import uuid
+from pathlib import Path
+
+import uvicorn
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+
+from database import Base, engine, get_db
+from models import Project
+from parser import parse_dbml
+
+# ── Bootstrap ─────────────────────────────────────────────────────────────────
+
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="DBML Docs")
+
+BASE_DIR = Path(__file__).parent
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _to_dict(p: Project) -> dict:
+    return {
+        "id":              p.id,
+        "name":            p.name,
+        "tables":          json.loads(p.tables_data     or "{}"),
+        "groups":          json.loads(p.groups_data     or "{}"),
+        "refs":            json.loads(p.refs_data       or "[]"),
+        "ungrouped":       json.loads(p.ungrouped_data  or "[]"),
+        "saved_positions": json.loads(p.saved_positions or "{}"),
+        "notes":           json.loads(p.notes_data      or "[]"),
+        "markdown_notes":  p.markdown_notes             or "",
+    }
+
+
+def _get_or_404(db: Session, pid: str) -> Project:
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return p
+
+
+# ── Pages ─────────────────────────────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, db: Session = Depends(get_db)):
+    projects = [_to_dict(p) for p in db.query(Project).order_by(Project.name).all()]
+    return templates.TemplateResponse("index.html", {
+        "request": request, "projects": projects,
+    })
+
+
+@app.post("/upload")
+async def upload(
+    request: Request,
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    raw = await file.read()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("latin-1")
+
+    try:
+        parsed = parse_dbml(content)
+    except Exception as exc:
+        projects = [_to_dict(p) for p in db.query(Project).order_by(Project.name).all()]
+        return templates.TemplateResponse("index.html", {
+            "request": request, "projects": projects, "error": str(exc),
+        })
+
+    project = Project(
+        id             = str(uuid.uuid4())[:8],
+        name           = name.strip() or file.filename,
+        tables_data    = json.dumps(parsed["tables"]),
+        groups_data    = json.dumps(parsed["groups"]),
+        refs_data      = json.dumps(parsed["refs"]),
+        ungrouped_data = json.dumps(parsed["ungrouped"]),
+    )
+    db.add(project)
+    db.commit()
+    return RedirectResponse(f"/project/{project.id}", status_code=303)
+
+
+@app.get("/project/{pid}", response_class=HTMLResponse)
+async def project_view(request: Request, pid: str, db: Session = Depends(get_db)):
+    project      = _to_dict(_get_or_404(db, pid))
+    all_projects = [_to_dict(p) for p in db.query(Project).order_by(Project.name).all()]
+    return templates.TemplateResponse("project.html", {
+        "request":      request,
+        "project":      project,
+        "project_json": json.dumps(project),
+        "all_projects": all_projects,
+    })
+
+
+@app.post("/project/{pid}/delete")
+async def delete_project(pid: str, db: Session = Depends(get_db)):
+    p = db.get(Project, pid)
+    if p:
+        db.delete(p)
+        db.commit()
+    return RedirectResponse("/", status_code=303)
+
+
+# ── API – state persistence ───────────────────────────────────────────────────
+
+@app.post("/project/{pid}/positions")
+async def save_positions(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    p.saved_positions = json.dumps(await request.json())
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/project/{pid}/notes")
+async def save_notes(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    p.notes_data = json.dumps(await request.json())
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/project/{pid}/markdown")
+async def save_markdown(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    body = await request.json()
+    p.markdown_notes = body.get("content", "")
+    db.commit()
+    return {"ok": True}
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
