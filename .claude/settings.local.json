@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(ls c:/Users/danie/Desktop/repos/futura_dbml/*.py c:/Users/danie/Desktop/repos/futura_dbml/static/)",
-      "Read(//c/Users/danie/.claude/projects/c--Users-danie-Desktop-repos-futura-dbml/memory/**)"
+      "Read(//c/Users/danie/.claude/projects/c--Users-danie-Desktop-repos-futura-dbml/memory/**)",
+      "Bash(python3.exe --version)",
+      "Bash(python.exe --version)",
+      "Bash(py --version)",
+      "Bash(py -c \":*)"
     ]
   }
 }
