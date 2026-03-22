@@ -1,0 +1,183 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// Sample 3 – HR System: JOIN con tabelle ponte + UNION + Vista finale
+//
+// Schema:
+//   - 3 tipologie di personale (employees, contractors, freelancers)
+//     → UNION ALL → vista hr.all_staff
+//   - Tabelle di supporto: departments, skills, projects
+//   - 2 tabelle ponte: staff_skills (staff ↔ skills), project_staff (projects ↔ staff)
+//   - Vista finale: hr.project_roster
+//     JOIN di project_staff + all_staff + projects + departments
+// ──────────────────────────────────────────────────────────────────────────────
+
+
+// ── Tabella di supporto: reparti ──────────────────────────────────────────────
+
+Table hr.departments [note: 'Reparti aziendali'] {
+  id         int          [pk, increment]
+  name       varchar(100) [not null, unique]
+  location   varchar(100)
+  budget     decimal(12,2)
+  manager_id int          [note: 'FK self-ref → employees.id']
+}
+
+
+// ── Tipologie di personale (schema identico per UNION) ────────────────────────
+
+Table hr.employees [note: 'Dipendenti a tempo indeterminato'] {
+  id         int          [pk, increment]
+  full_name  varchar(150) [not null]
+  email      varchar(150) [not null, unique]
+  dept_id    int          [not null]
+  job_title  varchar(100)
+  start_date date         [not null]
+  status     varchar(20)  [not null, default: 'active']
+  type       varchar(20)  [not null, default: 'employee']
+}
+
+Table hr.contractors [note: 'Collaboratori a contratto'] {
+  id         int          [pk, increment]
+  full_name  varchar(150) [not null]
+  email      varchar(150) [not null, unique]
+  dept_id    int          [not null]
+  job_title  varchar(100)
+  start_date date         [not null]
+  status     varchar(20)  [not null, default: 'active']
+  type       varchar(20)  [not null, default: 'contractor']
+}
+
+Table hr.freelancers [note: 'Freelance e consulenti esterni'] {
+  id         int          [pk, increment]
+  full_name  varchar(150) [not null]
+  email      varchar(150) [not null, unique]
+  dept_id    int          [not null]
+  job_title  varchar(100)
+  start_date date         [not null]
+  status     varchar(20)  [not null, default: 'active']
+  type       varchar(20)  [not null, default: 'freelancer']
+}
+
+
+// ── Tabelle di dominio ────────────────────────────────────────────────────────
+
+Table hr.skills [note: 'Catalogo competenze'] {
+  id       int         [pk, increment]
+  name     varchar(100)[not null, unique]
+  category varchar(50) [not null]
+  level    varchar(20) [not null, default: 'intermediate', note: 'junior / intermediate / senior']
+}
+
+Table hr.projects [note: 'Progetti aziendali'] {
+  id         int          [pk, increment]
+  name       varchar(150) [not null]
+  dept_id    int          [not null]
+  budget     decimal(12,2)
+  start_date date         [not null]
+  deadline   date
+  status     varchar(20)  [not null, default: 'planning', note: 'planning / active / closed']
+}
+
+
+// ── Tabelle ponte (JOIN molti-a-molti) ────────────────────────────────────────
+
+Table hr.staff_skills [note: 'Ponte: qualsiasi membro dello staff ↔ skills'] {
+  id           int  [pk, increment]
+  staff_id     int  [not null, note: 'ID del personale (employees / contractors / freelancers)']
+  staff_type   varchar(20) [not null, note: 'employee | contractor | freelancer']
+  skill_id     int  [not null]
+  certified_at date
+  expiry_date  date
+}
+
+Table hr.project_staff [note: 'Ponte: projects ↔ qualsiasi membro dello staff'] {
+  id          int  [pk, increment]
+  project_id  int  [not null]
+  staff_id    int  [not null, note: 'ID del personale (employees / contractors / freelancers)']
+  staff_type  varchar(20) [not null, note: 'employee | contractor | freelancer']
+  role        varchar(100)
+  assigned_at date [not null]
+}
+
+
+// ── Vista UNION: tutto il personale in un unico set ───────────────────────────
+
+Table hr.all_staff [note: 'VIEW – UNION ALL del personale\nSELECT id,full_name,email,dept_id,job_title,start_date,status,type FROM hr.employees\nUNION ALL SELECT ... FROM hr.contractors\nUNION ALL SELECT ... FROM hr.freelancers'] {
+  id         int
+  full_name  varchar(150)
+  email      varchar(150)
+  dept_id    int
+  job_title  varchar(100)
+  start_date date
+  status     varchar(20)
+  type       varchar(20)
+}
+
+
+// ── Vista finale: roster progetti con dettagli JOIN ───────────────────────────
+
+Table hr.project_roster [note: 'VIEW – JOIN: project_staff + all_staff + projects + departments\nSELECT ps.role, p.name AS project, p.status, p.deadline,\n       s.full_name, s.job_title, s.type,\n       d.name AS department\nFROM hr.project_staff ps\nJOIN hr.all_staff s ON s.id = ps.staff_id AND s.type = ps.staff_type\nJOIN hr.projects p ON p.id = ps.project_id\nJOIN hr.departments d ON d.id = p.dept_id'] {
+  role        varchar(100)
+  project     varchar(150)
+  status      varchar(20)
+  deadline    date
+  full_name   varchar(150)
+  job_title   varchar(100)
+  type        varchar(20)
+  department  varchar(100)
+}
+
+
+// ── Relazioni FK (JOIN) ───────────────────────────────────────────────────────
+
+// Personale → Reparti
+Ref: hr.employees.dept_id    > hr.departments.id
+Ref: hr.contractors.dept_id  > hr.departments.id
+Ref: hr.freelancers.dept_id  > hr.departments.id
+
+// Progetti → Reparti
+Ref: hr.projects.dept_id > hr.departments.id
+
+// Tabella ponte staff_skills
+Ref: hr.staff_skills.skill_id > hr.skills.id
+
+// Tabella ponte project_staff
+Ref: hr.project_staff.project_id > hr.projects.id
+
+// Vista project_roster ← tabelle sorgente
+Ref: hr.project_staff.project_id > hr.project_roster.project
+Ref: hr.departments.id           > hr.project_roster.department
+
+
+// ── Relazioni UNION (fonti → vista all_staff) ─────────────────────────────────
+
+Ref: hr.employees.id    > hr.all_staff.id
+Ref: hr.contractors.id  > hr.all_staff.id
+Ref: hr.freelancers.id  > hr.all_staff.id
+
+// Vista all_staff alimenta project_roster
+Ref: hr.all_staff.id > hr.project_roster.full_name
+
+
+// ── Gruppi ────────────────────────────────────────────────────────────────────
+
+TableGroup "Tipologie Personale" {
+  hr.employees
+  hr.contractors
+  hr.freelancers
+}
+
+TableGroup "Dominio" {
+  hr.departments
+  hr.skills
+  hr.projects
+}
+
+TableGroup "Tabelle Ponte" {
+  hr.staff_skills
+  hr.project_staff
+}
+
+TableGroup "Viste" {
+  hr.all_staff
+  hr.project_roster
+}

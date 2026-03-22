@@ -110,24 +110,34 @@ class Diagram {
     const allSaved   = tableNames.length > 0 && tableNames.every(n => saved[n]);
     if (allSaved) { Object.assign(this.positions, saved); return; }
 
+    // Collect columns (each group = one column, ungrouped = last column)
+    const columns = [];
+    for (const names of Object.values(groups)) {
+      const valid = names.filter(t => tables[t]);
+      if (valid.length) columns.push(valid);
+    }
+    const validUngrouped = ungrouped.filter(t => tables[t]);
+    if (validUngrouped.length) columns.push(validUngrouped);
+
+    // Compute total height of each column
+    const colHeights = columns.map(names =>
+      names.reduce((sum, n) => sum + this._cardHeight(tables[n]) + ROW_GAP, -ROW_GAP)
+    );
+    const maxH = Math.max(...colHeights);
+
+    // Place each column centered vertically relative to the tallest column
     let x = START_X;
-    const layoutColumn = names => {
-      let y = START_Y;
+    columns.forEach((names, ci) => {
+      const offsetY = Math.round((maxH - colHeights[ci]) / 2);
+      let y = START_Y + offsetY;
       names.forEach(name => {
         const tbl = tables[name];
         if (!tbl) return;
         this.positions[name] = saved[name] || { x, y };
         y += this._cardHeight(tbl) + ROW_GAP;
       });
-      x += CARD_WIDTH + COL_GAP;
-    };
-
-    for (const names of Object.values(groups)) {
-      const valid = names.filter(t => tables[t]);
-      if (valid.length) layoutColumn(valid);
-    }
-    const validUngrouped = ungrouped.filter(t => tables[t]);
-    if (validUngrouped.length) layoutColumn(validUngrouped);
+      x += CARD_WIDTH + COL_GAP + 60; // extra gap for readability
+    });
   }
 
   // ── DOM setup ───────────────────────────────────────────────────────────────

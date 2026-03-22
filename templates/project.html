@@ -36,7 +36,9 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       </a>
       <span class="brand-logo">&#9646;&#9646;</span>
-      <span class="brand-name">{{ project.name }}</span>
+      <span class="brand-name" id="brandName" title="Clicca per rinominare" onclick="startRename()">{{ project.name }}</span>
+      <input class="brand-name-input" id="brandInput" type="text" value="{{ project.name }}"
+             onblur="saveRename()" onkeydown="if(event.key==='Enter')this.blur(); if(event.key==='Escape')cancelRename();" />
     </div>
 
     <div class="sidebar-search">
@@ -509,6 +511,37 @@
     expandAndPulse(ref.from_table, ref.from_col);
     expandAndPulse(ref.to_table,   ref.to_col);
   });
+
+  // Project rename
+  function startRename() {
+    const span  = document.getElementById('brandName');
+    const input = document.getElementById('brandInput');
+    input.value = span.textContent.trim();
+    span.style.display  = 'none';
+    input.style.display = 'block';
+    input.select();
+  }
+  function cancelRename() {
+    document.getElementById('brandName').style.display  = '';
+    document.getElementById('brandInput').style.display = 'none';
+  }
+  function saveRename() {
+    const span  = document.getElementById('brandName');
+    const input = document.getElementById('brandInput');
+    const name  = input.value.trim();
+    if (!name || name === span.textContent.trim()) { cancelRename(); return; }
+    fetch(`/project/${PROJECT.id}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }).then(r => r.json()).then(data => {
+      span.textContent = data.name;
+      // aggiorna anche il tab attivo
+      const activeTab = document.querySelector('.project-tab.active .tab-name');
+      if (activeTab) activeTab.textContent = data.name;
+    });
+    cancelRename();
+  }
 
   // Sidebar group toggle
   function toggleGroup(header) {

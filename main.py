@@ -131,6 +131,17 @@ async def save_notes(pid: str, request: Request, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@app.post("/project/{pid}/rename")
+async def rename_project(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if name:
+        p.name = name
+        db.commit()
+    return {"ok": True, "name": p.name}
+
+
 @app.post("/project/{pid}/markdown")
 async def save_markdown(pid: str, request: Request, db: Session = Depends(get_db)):
     p = _get_or_404(db, pid)

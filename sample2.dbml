@@ -1,0 +1,91 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// Sample 2 – Famiglie prodotto + Vista UNION
+//
+// Le quattro tabelle hanno schema identico e possono essere combinate con:
+//
+//   SELECT id, name, price, brand, stock, category, created_at FROM catalog.electronics
+//   UNION ALL
+//   SELECT id, name, price, brand, stock, category, created_at FROM catalog.clothing
+//   UNION ALL
+//   SELECT id, name, price, brand, stock, category, created_at FROM catalog.food
+//   UNION ALL
+//   SELECT id, name, price, brand, stock, category, created_at FROM catalog.books
+// ──────────────────────────────────────────────────────────────────────────────
+
+
+// ── Famiglie prodotto ─────────────────────────────────────────────────────────
+
+Table catalog.electronics [note: 'Articoli di elettronica'] {
+  id         int           [pk, increment]
+  name       varchar(255)  [not null]
+  price      decimal(10,2) [not null]
+  brand      varchar(100)
+  stock      int           [not null, default: 0]
+  category   varchar(50)   [not null, default: 'electronics']
+  created_at datetime
+}
+
+Table catalog.clothing [note: 'Articoli di abbigliamento'] {
+  id         int           [pk, increment]
+  name       varchar(255)  [not null]
+  price      decimal(10,2) [not null]
+  brand      varchar(100)
+  stock      int           [not null, default: 0]
+  category   varchar(50)   [not null, default: 'clothing']
+  created_at datetime
+}
+
+Table catalog.food [note: 'Articoli alimentari'] {
+  id         int           [pk, increment]
+  name       varchar(255)  [not null]
+  price      decimal(10,2) [not null]
+  brand      varchar(100)
+  stock      int           [not null, default: 0]
+  category   varchar(50)   [not null, default: 'food']
+  created_at datetime
+}
+
+Table catalog.books [note: 'Libri e pubblicazioni'] {
+  id         int           [pk, increment]
+  name       varchar(255)  [not null]
+  price      decimal(10,2) [not null]
+  brand      varchar(100)
+  stock      int           [not null, default: 0]
+  category   varchar(50)   [not null, default: 'books']
+  created_at datetime
+}
+
+
+// ── Vista UNION ───────────────────────────────────────────────────────────────
+
+Table catalog.all_products [note: 'VIEW – UNION ALL delle quattro famiglie prodotto'] {
+  id         int
+  name       varchar(255)
+  price      decimal(10,2)
+  brand      varchar(100)
+  stock      int
+  category   varchar(50)
+  created_at datetime
+}
+
+
+// ── Relazioni UNION (ogni famiglia alimenta la vista) ─────────────────────────
+
+Ref: catalog.electronics.id > catalog.all_products.id
+Ref: catalog.clothing.id    > catalog.all_products.id
+Ref: catalog.food.id        > catalog.all_products.id
+Ref: catalog.books.id       > catalog.all_products.id
+
+
+// ── Gruppi ───────────────────────────────────────────────────────────────────
+
+TableGroup "Famiglie Prodotto" {
+  catalog.electronics
+  catalog.clothing
+  catalog.food
+  catalog.books
+}
+
+TableGroup "Vista UNION" {
+  catalog.all_products
+}
