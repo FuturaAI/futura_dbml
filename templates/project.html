@@ -172,6 +172,41 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
           Post-it
         </button>
+        <div class="export-dropdown" id="exportDropdown">
+          <button class="btn-export" onclick="toggleExportMenu(event)" title="Esporta">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Esporta
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="export-chevron"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="export-menu" id="exportMenu">
+            <button class="export-item" onclick="exportSVG()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              SVG
+            </button>
+            <button class="export-item" onclick="exportPDF()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              PDF
+            </button>
+            <div class="export-divider"></div>
+            <button class="export-item" onclick="exportDBML()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              DBML
+            </button>
+            <div class="export-divider"></div>
+            <button class="export-item" onclick="exportSQL('postgres')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              SQL — PostgreSQL
+            </button>
+            <button class="export-item" onclick="exportSQL('mssql')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              SQL — MS SQL Server
+            </button>
+            <button class="export-item" onclick="exportSQL('sqlite')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              SQL — SQLite
+            </button>
+          </div>
+        </div>
       </div>
       <div class="toolbar-zoom" id="zoomControls">
         <button class="zoom-btn" onclick="diagram && diagram.zoomOut()" title="Zoom out">&#8722;</button>
@@ -621,6 +656,382 @@
       }
     });
   });
+
+  // ── Export ────────────────────────────────────────────────────────────────
+
+  function toggleExportMenu(e) {
+    e.stopPropagation();
+    const menu  = document.getElementById('exportMenu');
+    const chev  = document.querySelector('.export-chevron');
+    const open  = menu.classList.contains('open');
+    menu.classList.toggle('open', !open);
+    chev.classList.toggle('open', !open);
+  }
+
+  document.addEventListener('click', () => {
+    const menu = document.getElementById('exportMenu');
+    const chev = document.querySelector('.export-chevron');
+    menu.classList.remove('open');
+    chev.classList.remove('open');
+  });
+
+  function _downloadText(content, filename, mime) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── DBML ──────────────────────────────────────────────────────────────────
+
+  function exportDBML() {
+    const tables = PROJECT.tables || {};
+    const groups = PROJECT.groups || {};
+    const ungrouped = PROJECT.ungrouped || [];
+    const refs   = PROJECT.refs || [];
+    const lines  = [];
+
+    // Tables
+    for (const [tname, tbl] of Object.entries(tables)) {
+      const headerName = tbl.full_name || tname;
+      lines.push(`Table ${headerName} {`);
+      for (const col of tbl.columns) {
+        let def = `  ${col.name} ${col.type}`;
+        const attrs = [];
+        if (col.pk)       attrs.push('pk');
+        if (col.not_null && !col.pk) attrs.push('not null');
+        if (col.unique)   attrs.push('unique');
+        if (col.default != null) attrs.push(`default: ${col.default}`);
+        if (col.note)     attrs.push(`note: '${col.note.replace(/'/g, "\\'")}'`);
+        if (attrs.length) def += ` [${attrs.join(', ')}]`;
+        lines.push(def);
+      }
+      if (tbl.note) lines.push(`  note: '${tbl.note.replace(/'/g, "\\'")}'`);
+      lines.push('}');
+      lines.push('');
+    }
+
+    // TableGroups
+    for (const [gname, tnames] of Object.entries(groups)) {
+      lines.push(`TableGroup ${gname} {`);
+      tnames.forEach(t => lines.push(`  ${t}`));
+      lines.push('}');
+      lines.push('');
+    }
+
+    // Refs
+    for (const r of refs) {
+      lines.push(`Ref: ${r.from_table}.${r.from_col} ${r.type} ${r.to_table}.${r.to_col}`);
+    }
+
+    _downloadText(lines.join('\n'), `${PROJECT.name}.dbml`, 'text/plain');
+  }
+
+  // ── SQL helpers ───────────────────────────────────────────────────────────
+
+  function _quoteIdent(name, dialect) {
+    return dialect === 'mssql' ? `[${name}]` : `"${name}"`;
+  }
+
+  // Quota un nome che può essere "schema.table" → usa solo il nome tabella
+  function _quoteTable(fullName, dialect) {
+    const dot = fullName.indexOf('.');
+    const table = dot === -1 ? fullName : fullName.slice(dot + 1);
+    return _quoteIdent(table, dialect);
+  }
+
+  function _mapType(type, dialect) {
+    if (dialect === 'postgres') return type;
+    const t = type.toLowerCase();
+
+    if (dialect === 'sqlite') {
+      if (t === 'boolean' || t === 'bool')                       return 'INTEGER';
+      if (t === 'serial')                                         return 'INTEGER';
+      if (t === 'bigserial')                                      return 'INTEGER';
+      if (t === 'smallint' || t === 'int2')                       return 'INTEGER';
+      if (t === 'int' || t === 'integer' || t === 'int4')         return 'INTEGER';
+      if (t === 'bigint' || t === 'int8')                         return 'INTEGER';
+      if (t === 'double precision' || t === 'float8' || t === 'float') return 'REAL';
+      if (t === 'real' || t === 'float4')                         return 'REAL';
+      if (t === 'numeric' || t === 'decimal' || t.startsWith('numeric(') || t.startsWith('decimal(')) return 'NUMERIC';
+      if (t === 'text' || t.startsWith('varchar') || t.startsWith('char') || t === 'clob') return 'TEXT';
+      if (t === 'bytea' || t === 'blob')                          return 'BLOB';
+      if (t === 'json' || t === 'jsonb')                          return 'TEXT';
+      if (t === 'uuid')                                           return 'TEXT';
+      if (t === 'date' || t === 'time' || t.startsWith('timestamp')) return 'TEXT';
+      return type;
+    }
+
+    // MSSQL type mappings
+    if (t === 'boolean' || t === 'bool')            return 'BIT';
+    if (t === 'serial')                              return 'INT IDENTITY(1,1)';
+    if (t === 'bigserial')                           return 'BIGINT IDENTITY(1,1)';
+    if (t === 'text')                                return 'NVARCHAR(MAX)';
+    if (t.startsWith('varchar'))                     return type.replace(/varchar/i, 'NVARCHAR');
+    if (t.startsWith('char(') || t === 'char')       return type.replace(/^char/i, 'NCHAR');
+    if (t === 'bytea')                               return 'VARBINARY(MAX)';
+    if (t === 'json' || t === 'jsonb')               return 'NVARCHAR(MAX)';
+    if (t === 'uuid')                                return 'UNIQUEIDENTIFIER';
+    if (t === 'timestamptz' || t === 'timestamp with time zone') return 'DATETIMEOFFSET';
+    if (t === 'timestamp' || t.startsWith('timestamp')) return 'DATETIME2';
+    if (t === 'date')                                return 'DATE';
+    if (t === 'time')                                return 'TIME';
+    if (t === 'double precision' || t === 'float8')  return 'FLOAT';
+    if (t === 'real' || t === 'float4')              return 'REAL';
+    return type;
+  }
+
+  function _generateSQL(dialect) {
+    const tables = PROJECT.tables || {};
+    const refs   = PROJECT.refs || [];
+    const lines  = [];
+    const dialectLabel = { postgres: 'PostgreSQL', mssql: 'MS SQL Server', sqlite: 'SQLite' }[dialect] || dialect;
+
+    lines.push(`-- Generated by DBML Docs`);
+    lines.push(`-- Project: ${PROJECT.name}`);
+    lines.push(`-- Dialect: ${dialectLabel}`);
+    lines.push('');
+
+    if (dialect === 'sqlite') {
+      lines.push('PRAGMA foreign_keys = ON;');
+      lines.push('');
+    }
+
+    // Build FK lookup: from_table → list of FK constraints (for SQLite inline)
+    const inlineFKs = {};
+    if (dialect === 'sqlite') {
+      for (const r of refs) {
+        if (r.type === '>') {
+          if (!inlineFKs[r.from_table]) inlineFKs[r.from_table] = [];
+          inlineFKs[r.from_table].push(r);
+        }
+      }
+    }
+
+    for (const [tname, tbl] of Object.entries(tables)) {
+      const tableSql = _quoteTable(tbl.full_name || tname, dialect);
+      lines.push(`CREATE TABLE ${tableSql} (`);
+
+      const pkCols = tbl.columns.filter(c => c.pk).map(c => c.name);
+      const colDefs = tbl.columns.map(col => {
+        let mappedType = _mapType(col.type, dialect);
+        // SQLite: INTEGER PRIMARY KEY is the rowid alias (autoincrement implicit)
+        const isSqliteSerial = dialect === 'sqlite' &&
+          (col.type.toLowerCase() === 'serial' || col.type.toLowerCase() === 'bigserial');
+        let def = `  ${_quoteIdent(col.name, dialect)} ${mappedType}`;
+        if (col.pk && pkCols.length === 1) {
+          def += ' PRIMARY KEY';
+          if (dialect === 'sqlite' && isSqliteSerial) def += ' AUTOINCREMENT';
+        }
+        if (col.not_null && !col.pk) def += ' NOT NULL';
+        if (col.unique)              def += ' UNIQUE';
+        if (col.default != null)     def += ` DEFAULT ${col.default}`;
+        return def;
+      });
+
+      if (pkCols.length > 1) {
+        colDefs.push(`  PRIMARY KEY (${pkCols.map(c => _quoteIdent(c, dialect)).join(', ')})`);
+      }
+
+      // SQLite: inline FOREIGN KEY constraints
+      if (dialect === 'sqlite' && inlineFKs[tname]) {
+        for (const r of inlineFKs[tname]) {
+          colDefs.push(`  FOREIGN KEY (${_quoteIdent(r.from_col, dialect)}) REFERENCES ${_quoteTable(r.to_table, dialect)} (${_quoteIdent(r.to_col, dialect)})`);
+        }
+      }
+
+      lines.push(colDefs.join(',\n'));
+      lines.push(');');
+      lines.push('');
+    }
+
+    // Foreign keys via ALTER TABLE (Postgres / MSSQL only)
+    if (dialect !== 'sqlite') {
+      const fkRefs = refs.filter(r => r.type === '>');
+      if (fkRefs.length) {
+        lines.push('-- Foreign keys');
+        for (const r of fkRefs) {
+          const fkName = `fk_${r.from_table.replace(/\W/g,'_')}_${r.from_col}`;
+          lines.push(`ALTER TABLE ${_quoteTable(r.from_table, dialect)}`);
+          lines.push(`  ADD CONSTRAINT ${fkName}`);
+          lines.push(`  FOREIGN KEY (${_quoteIdent(r.from_col, dialect)})`);
+          lines.push(`  REFERENCES ${_quoteTable(r.to_table, dialect)} (${_quoteIdent(r.to_col, dialect)});`);
+          lines.push('');
+        }
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  function exportSQL(dialect) {
+    const ext = { postgres: 'pg.sql', mssql: 'mssql.sql', sqlite: 'sqlite.sql' }[dialect] || `${dialect}.sql`;
+    _downloadText(_generateSQL(dialect), `${PROJECT.name}.${ext}`, 'text/plain');
+  }
+
+  // ── SVG diagram export ────────────────────────────────────────────────────
+
+  function _buildDiagramSVG() {
+    if (!diagram) return null;
+    const tables  = PROJECT.tables || {};
+    const groups  = PROJECT.groups || {};
+    const refs    = PROJECT.refs || [];
+    const pos     = diagram.positions || {};
+
+    const CARD_W = 260;
+    const HDR_H  = 44;
+    const COL_H  = 26;
+    const PAD_B  = 10;
+    const GRP_P  = 24;
+    const GRP_LH = 16;
+
+    function cardH(t) { return HDR_H + t.columns.length * COL_H + PAD_B; }
+
+    // Compute canvas bounds
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [name, tbl] of Object.entries(tables)) {
+      if (!pos[name]) continue;
+      const { x, y } = pos[name];
+      const h = cardH(tbl);
+      minX = Math.min(minX, x); minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + CARD_W); maxY = Math.max(maxY, y + h);
+    }
+    // Expand for groups
+    for (const [gname, tnames] of Object.entries(groups)) {
+      const valid = tnames.filter(t => tables[t] && pos[t]);
+      if (!valid.length) continue;
+      let gx1 = Infinity, gy1 = Infinity, gx2 = -Infinity, gy2 = -Infinity;
+      for (const n of valid) {
+        gx1 = Math.min(gx1, pos[n].x); gy1 = Math.min(gy1, pos[n].y);
+        gx2 = Math.max(gx2, pos[n].x + CARD_W); gy2 = Math.max(gy2, pos[n].y + cardH(tables[n]));
+      }
+      minX = Math.min(minX, gx1 - GRP_P);
+      minY = Math.min(minY, gy1 - GRP_P - GRP_LH);
+    }
+    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
+    const MARGIN = 40;
+    const W = maxX - minX + MARGIN * 2;
+    const H = maxY - minY + MARGIN * 2;
+    const ox = -minX + MARGIN;
+    const oy = -minY + MARGIN;
+
+    const GROUP_COLORS = ['#ef4444','#3b82f6','#a855f7','#22c55e','#f59e0b','#06b6d4','#f97316','#ec4899'];
+    const groupColorMap = {};
+    Object.keys(groups).forEach((g, i) => { groupColorMap[g] = GROUP_COLORS[i % 8]; });
+    const tableGroupMap = {};
+    for (const [g, ts] of Object.entries(groups)) ts.forEach(t => { tableGroupMap[t] = g; });
+    (PROJECT.ungrouped || []).forEach(t => { tableGroupMap[t] = '__ungrouped__'; });
+    function tableColor(name) { return groupColorMap[tableGroupMap[name]] || '#64748b'; }
+
+    function hexRgbaLocal(hex, a) {
+      const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    let svgParts = [];
+    svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`);
+    svgParts.push(`<rect width="${W}" height="${H}" fill="#f1f5f9"/>`);
+
+    // Group containers
+    for (const [gname, tnames] of Object.entries(groups)) {
+      const valid = tnames.filter(t => tables[t] && pos[t]);
+      if (!valid.length) continue;
+      const color = groupColorMap[gname] || '#64748b';
+      let gx1 = Infinity, gy1 = Infinity, gx2 = -Infinity, gy2 = -Infinity;
+      for (const n of valid) {
+        gx1 = Math.min(gx1, pos[n].x); gy1 = Math.min(gy1, pos[n].y);
+        gx2 = Math.max(gx2, pos[n].x + CARD_W); gy2 = Math.max(gy2, pos[n].y + cardH(tables[n]));
+      }
+      const rx = gx1 - GRP_P + ox, ry = gy1 - GRP_P - GRP_LH + oy;
+      const rw = gx2 - gx1 + GRP_P * 2, rh = gy2 - gy1 + GRP_P * 2 + GRP_LH;
+      svgParts.push(`<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="10" fill="${hexRgbaLocal(color,0.06)}" stroke="${color}" stroke-width="2"/>`);
+      svgParts.push(`<rect x="${rx+10}" y="${ry-11}" width="${Math.min(esc(gname).length*8+16,200)}" height="22" rx="6" fill="${color}"/>`);
+      svgParts.push(`<text x="${rx+18}" y="${ry+5}" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#fff">${esc(gname)}</text>`);
+    }
+
+    // Connection lines
+    function connPoints(fromT, toT) {
+      const fp = pos[fromT], tp = pos[toT];
+      if (!fp || !tp) return null;
+      const fh = cardH(tables[fromT]), th = cardH(tables[toT]);
+      const fCx = fp.x + CARD_W / 2, tCx = tp.x + CARD_W / 2;
+      let x1, x2;
+      if (fCx <= tCx) { x1 = fp.x + CARD_W; x2 = tp.x; }
+      else             { x1 = fp.x;           x2 = tp.x + CARD_W; }
+      const y1 = fp.y + fh / 2, y2 = tp.y + th / 2;
+      const dx = Math.abs(x2 - x1) * 0.5;
+      return { x1: x1+ox, y1: y1+oy, x2: x2+ox, y2: y2+oy, dx };
+    }
+
+    for (const r of refs) {
+      const p = connPoints(r.from_table, r.to_table);
+      if (!p) continue;
+      const { x1, y1, x2, y2, dx } = p;
+      svgParts.push(`<path d="M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#svgArr)"/>`);
+    }
+
+    // Arrow marker def
+    svgParts.splice(2, 0, `<defs><marker id="svgArr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#94a3b8"/></marker></defs>`);
+
+    // Table cards
+    for (const [tname, tbl] of Object.entries(tables)) {
+      if (!pos[tname]) continue;
+      const { x, y } = pos[tname];
+      const sx = x + ox, sy = y + oy;
+      const h  = cardH(tbl);
+      const color = tableColor(tname);
+
+      svgParts.push(`<rect x="${sx}" y="${sy}" width="${CARD_W}" height="${h}" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>`);
+      svgParts.push(`<rect x="${sx}" y="${sy}" width="${CARD_W}" height="${HDR_H}" rx="8" fill="${color}"/>`);
+      svgParts.push(`<rect x="${sx}" y="${sy+HDR_H-8}" width="${CARD_W}" height="8" fill="${color}"/>`);
+      svgParts.push(`<text x="${sx+14}" y="${sy+HDR_H/2+5}" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#fff">${esc(tbl.name || tname)}</text>`);
+
+      tbl.columns.forEach((col, ci) => {
+        const cy = sy + HDR_H + ci * COL_H;
+        const isPK = col.pk;
+        if (ci % 2 === 0) svgParts.push(`<rect x="${sx+1}" y="${cy}" width="${CARD_W-2}" height="${COL_H}" fill="#f8fafc"/>`);
+        if (isPK) svgParts.push(`<rect x="${sx+6}" y="${cy+6}" width="22" height="14" rx="3" fill="#fef9c3"/>`);
+        const textY = cy + COL_H / 2 + 4;
+        let nameX = sx + 36;
+        if (isPK) svgParts.push(`<text x="${sx+8}" y="${textY}" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#854d0e">PK</text>`);
+        else nameX = sx + 12;
+        svgParts.push(`<text x="${nameX}" y="${textY}" font-family="system-ui,sans-serif" font-size="12" fill="#1e293b">${esc(col.name)}</text>`);
+        svgParts.push(`<text x="${sx+CARD_W-8}" y="${textY}" font-family="system-ui,sans-serif" font-size="11" fill="#64748b" text-anchor="end">${esc(col.type)}</text>`);
+      });
+
+      // bottom border radius fix
+      svgParts.push(`<rect x="${sx}" y="${sy+h-8}" width="${CARD_W}" height="8" rx="0" fill="#fff" stroke="none"/>`);
+      svgParts.push(`<path d="M${sx+1},${sy+h-8} L${sx+1},${sy+h} Q${sx+1},${sy+h+7.5} ${sx+8.5},${sy+h+7.5}" stroke="none" fill="none"/>`);
+    }
+
+    svgParts.push('</svg>');
+    return svgParts.join('\n');
+  }
+
+  function exportSVG() {
+    const svg = _buildDiagramSVG();
+    if (!svg) return;
+    _downloadText(svg, `${PROJECT.name}.svg`, 'image/svg+xml');
+  }
+
+  function exportPDF() {
+    const svg = _buildDiagramSVG();
+    if (!svg) return;
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>${PROJECT.name}</title>
+<style>
+  body { margin: 0; background: #f1f5f9; }
+  svg { display: block; max-width: 100%; height: auto; }
+  @media print { body { background: white; } @page { size: auto; margin: 10mm; } }
+</style>
+</head><body>${svg}
+<script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`);
+    win.document.close();
+  }
 
   // Tab close — persiste lo stato su localStorage
   const HIDDEN_KEY = 'dbml_hidden_tabs';

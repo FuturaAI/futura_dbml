@@ -997,3 +997,44 @@ code { font-family: 'SFMono-Regular', Consolas, monospace; }
   cursor: pointer; transition: background .12s;
 }
 .btn-add-note:hover { background: #fde68a; }
+
+/* Export dropdown */
+.export-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+.btn-export {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: #1e40af;
+  background: #dbeafe; border: 1px solid #bfdbfe;
+  cursor: pointer; transition: background .12s;
+}
+.btn-export:hover { background: #bfdbfe; }
+.export-chevron { transition: transform .15s; }
+.export-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 190px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  padding: 4px;
+  z-index: 999;
+}
+.export-menu.open { display: block; }
+.export-chevron.open { transform: rotate(180deg); }
+.export-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 10px;
+  border: none; background: none; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: var(--text);
+  cursor: pointer; text-align: left; transition: background .1s;
+}
+.export-item:hover { background: #f1f5f9; }
+.export-divider {
+  height: 1px; background: var(--border); margin: 4px 0;
+}

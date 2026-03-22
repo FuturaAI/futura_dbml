@@ -3,29 +3,29 @@
 // ============================================================
 
 TableGroup "Product Management" {
-  product.products
-  product.categories
-  product.product_tags
-  product.product_tags_map
-  product.product_variants
+  products
+  categories
+  product_tags
+  product_tags_map
+  product_variants
 }
 
 TableGroup "Order Management" {
-  core.orders
-  core.order_items
-  core.order_item_variants
-  core.payment_transactions
-  core.shipping_carriers
+  orders
+  order_items
+  order_item_variants
+  payment_transactions
+  shipping_carriers
 }
 
 TableGroup "Wishlist Management" {
-  wishlist.wishlists
-  wishlist.wishlist_items
+  wishlists
+  wishlist_items
 }
 
 // ---- CORE ----
 
-Table core.users {
+Table users {
   id int [pk, increment]
   full_name varchar
   email varchar [unique, not null]
@@ -38,46 +38,46 @@ Table core.users {
   entry_code varchar
 }
 
-Table core.merchants {
+Table merchants {
   id int [pk, increment]
-  country_code int [not null, ref: > info.countries.id]
-  status core.orders_status [not null]
+  country_code int [not null, ref: > countries.id]
+  status orders_status [not null]
   merchant_name varchar
 }
 
-Table core.orders {
+Table orders {
   id int [pk, increment]
-  user_id int [not null, ref: > core.users.id]
-  status core.orders_status [not null]
+  user_id int [not null, ref: > users.id]
+  status orders_status [not null]
   created_at varchar
   total_price decimal
   shipping_address varchar
   billing_address varchar
   payment_method varchar
   payment_status varchar
-  shipping_carrier_id int [ref: > core.shipping_carriers.id]
+  shipping_carrier_id int [ref: > shipping_carriers.id]
 }
 
-Table core.order_items {
+Table order_items {
   id int [pk, increment]
-  order_id int [not null, ref: > core.orders.id]
-  product_id int [not null, ref: > product.products.id]
+  order_id int [not null, ref: > orders.id]
+  product_id int [not null, ref: > products.id]
   product_name varchar [not null]
   quantity int
-  status core.orders_status [not null]
+  status orders_status [not null]
   price decimal
   image_url varchar
 }
 
-Table core.order_item_variants {
+Table order_item_variants {
   id int [pk, increment]
-  order_item_id int [not null, ref: > core.order_items.id]
-  product_variant_id int [not null, ref: > product.product_variants.id]
+  order_item_id int [not null, ref: > order_items.id]
+  product_variant_id int [not null, ref: > product_variants.id]
 }
 
-Table core.payment_transactions {
+Table payment_transactions {
   id int [pk, increment]
-  order_id int [not null, ref: > core.orders.id]
+  order_id int [not null, ref: > orders.id]
   amount int
   status varchar
   created_at datetime
@@ -85,25 +85,25 @@ Table core.payment_transactions {
   transaction_id varchar
 }
 
-Table core.shipping_carriers {
+Table shipping_carriers {
   id int [pk, increment]
   name varchar
   tracking_url varchar
 }
 
-Table core.promotions {
+Table promotions {
   id int [pk, increment]
   name varchar
   description varchar
   discount_percentage decimal
   start_date datetime [not null]
   end_date datetime [not null]
-  product_id int [not null, ref: > product.products.id]
+  product_id int [not null, ref: > products.id]
 }
 
 // ---- PRODUCT ----
 
-Table product.products {
+Table products {
   id int [pk, increment]
   name varchar
   description varchar
@@ -112,67 +112,67 @@ Table product.products {
   weight float
   dimensions varchar
   rating float
-  merchant_id int [not null, ref: > core.merchants.id]
+  merchant_id int [not null, ref: > merchants.id]
   price decimal
   created_at datetime
-  category_id int [ref: > product.categories.id]
+  category_id int [ref: > categories.id]
   expiry_date datetime
 }
 
-Table product.categories {
+Table categories {
   id int [pk, increment]
   name varchar
   parent_category_id int
 }
 
-Table product.product_tags {
+Table product_tags {
   id int [pk, increment]
   name varchar
 }
 
-Table product.product_tags_map {
-  product_id int [not null, ref: > product.products.id]
-  tag_id int [not null, ref: > product.product_tags.id]
+Table product_tags_map {
+  product_id int [not null, ref: > products.id]
+  tag_id int [not null, ref: > product_tags.id]
 }
 
-Table product.product_variants {
+Table product_variants {
   id int [pk, increment]
   name varchar
   order_item_id int
-  product_id int [not null, ref: > product.products.id]
+  product_id int [not null, ref: > products.id]
 }
 
 // ---- WISHLIST ----
 
-Table wishlist.wishlists {
+Table wishlists {
   id int [pk, increment]
-  user_id int [not null, ref: > core.users.id]
+  user_id int [not null, ref: > users.id]
   name varchar
 }
 
-Table wishlist.wishlist_items {
+Table wishlist_items {
   id int [pk, increment]
-  wishlist_id int [not null, ref: > wishlist.wishlists.id]
-  product_id int [not null, ref: > product.products.id]
+  wishlist_id int [not null, ref: > wishlists.id]
+  product_id int [not null, ref: > products.id]
   created_at datetime
 }
 
 // ---- CART ----
 
-Table cart.cart_items {
+Table cart_items {
   id int [pk, increment]
-  user_id int [not null, ref: > core.users.id]
-  product_id int [not null, ref: > product.products.id]
+  user_id int [not null, ref: > users.id]
+  product_id int [not null, ref: > products.id]
   quantity int
   created_at datetime
 }
 
 // ---- REVIEW ----
 
-Table review.reviews {
+Table reviews {
   id int [pk, increment]
-  user_id int [not null, ref: > core.users.id]
-  product_id int [not null, ref: > product.products.id]
+  user_id int [not null, ref: > users.id]
+  product_id int [not null, ref: > products.id]
   rating int
   comment varchar
   created_at datetime
@@ -180,7 +180,7 @@ Table review.reviews {
 
 // ---- INFO ----
 
-Table info.countries {
+Table countries {
   id int [pk, increment]
   name varchar [not null]
   code varchar [unique]
