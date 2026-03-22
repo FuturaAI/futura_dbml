@@ -23,6 +23,7 @@ Strumento di documentazione interattiva per database a partire da file `.dbml`.
 
 ```bash
 uv sync
+.venv\Scripts\activate
 uv run python main.py
 ```
 

@@ -56,6 +56,7 @@ class Diagram {
     this._saveTimeout     = null;
     this._notesTimeout    = null;
 
+    this._activeRef      = null;
     this._groupColorMap = this._buildColorMap();
     this._tableGroupMap = this._buildTableGroupMap();
 
@@ -144,6 +145,9 @@ class Diagram {
       </marker>
       <marker id="arr-hi" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
         <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6"/>
+      </marker>
+      <marker id="arr-sel" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#818cf8"/>
       </marker>
     </defs>`;
     this.canvas.appendChild(this.svg);
@@ -334,9 +338,11 @@ class Diagram {
       const header = document.createElement('div');
       header.className = 'card-header';
       header.style.background = color;
+      const grpLabel = this._tableGroupMap[name];
+      const subLabel = (grpLabel && grpLabel !== '__ungrouped__') ? grpLabel : '';
       header.innerHTML = `
         <div class="card-header-left">
-          ${tbl.schema ? `<span class="card-schema">${tbl.schema}</span>` : ''}
+          ${subLabel ? `<span class="card-schema">${subLabel}</span>` : ''}
           <span class="card-table-name">${tbl.name}</span>
         </div>
         <button class="card-eye-btn" title="Mostra/nascondi">${SVG_EYE_OPEN}</button>
@@ -386,8 +392,9 @@ class Diagram {
   // ── connections ──────────────────────────────────────────────────────────────
 
   _renderConnections(highlightTable = null) {
-    this.svg.querySelectorAll('path.conn').forEach(p => p.remove());
-    const tables = this.project.tables || {};
+    this.svg.querySelectorAll('path.conn, path.conn-hit').forEach(p => p.remove());
+    const tables    = this.project.tables || {};
+    const activeRef = !highlightTable ? this._activeRef : null;
 
     (this.project.refs || []).forEach(ref => {
       const fromTbl = tables[ref.from_table];
@@ -396,7 +403,6 @@ class Diagram {
       const toPos   = this.positions[ref.to_table];
       if (!fromTbl || !toTbl || !fromPos || !toPos) return;
 
-      // Skip connections involving hidden groups or hidden individual tables
       const fromGrp = this._tableGroupMap[ref.from_table];
       const toGrp   = this._tableGroupMap[ref.to_table];
       if (this._hiddenGroups.has(fromGrp)        || this._hiddenGroups.has(toGrp))        return;
@@ -416,19 +422,65 @@ class Diagram {
       const cpDx = Math.max(60, Math.abs(x2 - x1) * 0.45);
       const cp1x = x1 + (fromPos.x <= toPos.x ?  cpDx : -cpDx);
       const cp2x = x2 + (fromPos.x <= toPos.x ? -cpDx :  cpDx);
+      const d    = `M ${x1} ${y1} C ${cp1x} ${y1} ${cp2x} ${y2} ${x2} ${y2}`;
 
+      const isSel = activeRef &&
+        activeRef.from_table === ref.from_table && activeRef.from_col === ref.from_col &&
+        activeRef.to_table   === ref.to_table   && activeRef.to_col   === ref.to_col;
       const isHi = highlightTable &&
         (ref.from_table === highlightTable || ref.to_table === highlightTable);
 
+      let stroke = '#cbd5e1', strokeW = '1.5', marker = 'url(#arr)';
+      if (isSel)      { stroke = '#818cf8'; strokeW = '2.5'; marker = 'url(#arr-sel)'; }
+      else if (isHi)  { stroke = '#3b82f6'; strokeW = '2';   marker = 'url(#arr-hi)';  }
+
+      const dimmed = (highlightTable && !isHi) || (activeRef && !isSel);
+
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('class', 'conn');
-      path.setAttribute('d', `M ${x1} ${y1} C ${cp1x} ${y1} ${cp2x} ${y2} ${x2} ${y2}`);
+      path.setAttribute('d', d);
       path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', isHi ? '#3b82f6' : '#cbd5e1');
-      path.setAttribute('stroke-width', isHi ? '2' : '1.5');
-      path.setAttribute('marker-end', isHi ? 'url(#arr-hi)' : 'url(#arr)');
-      if (highlightTable && !isHi) path.style.opacity = '0.25';
+      path.setAttribute('stroke', stroke);
+      path.setAttribute('stroke-width', strokeW);
+      path.setAttribute('marker-end', marker);
+      if (dimmed) path.style.opacity = '0.2';
       this.svg.appendChild(path);
+
+      // Wide invisible hit-area (same SVG, above visual path in DOM order)
+      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hit.setAttribute('class', 'conn-hit');
+      hit.setAttribute('d', d);
+      hit.setAttribute('fill', 'none');
+      hit.setAttribute('stroke', 'rgba(0,0,0,0.001)');
+      hit.setAttribute('stroke-width', '18');
+      hit.style.cursor = 'pointer';
+      hit.style.pointerEvents = 'stroke';
+
+      const tip       = document.querySelector('.fk-tooltip');
+      const tipTarget = tip && tip.querySelector('.fk-tooltip-target');
+      hit.addEventListener('mouseenter', e => {
+        if (!tip) return;
+        if (tipTarget) {
+          const fn = (this.project.tables[ref.from_table] || {}).name || ref.from_table;
+          const tn = (this.project.tables[ref.to_table]   || {}).name || ref.to_table;
+          tipTarget.textContent = `${fn}.${ref.from_col}  ·  ${tn}.${ref.to_col}`;
+        }
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 18) + 'px';
+        tip.style.top  = (e.clientY - 16) + 'px';
+      });
+      hit.addEventListener('mousemove', e => {
+        if (!tip) return;
+        tip.style.left = (e.clientX + 18) + 'px';
+        tip.style.top  = (e.clientY - 16) + 'px';
+      });
+      hit.addEventListener('mouseleave', () => { if (tip) tip.style.display = 'none'; });
+      hit.addEventListener('click', e => {
+        e.stopPropagation();
+        if (tip) tip.style.display = 'none';
+        this.focusRef(ref);
+      });
+      this.svg.appendChild(hit);
     });
   }
 
@@ -446,7 +498,9 @@ class Diagram {
   }
 
   _clearHighlight() {
-    Object.values(this.cards).forEach(c => { c.style.opacity = '1'; });
+    this._activeRef = null;
+    Object.values(this.cards).forEach(c => { c.style.opacity = '1'; c.classList.remove('highlighted'); });
+    this.canvas.querySelectorAll('.col-row.ref-highlight').forEach(r => r.classList.remove('ref-highlight'));
     this._renderConnections();
   }
 
@@ -690,8 +744,37 @@ class Diagram {
 
   // ── public API ───────────────────────────────────────────────────────────────
 
+  focusRef(ref) {
+    this.activeTable = null;
+    this._activeRef  = ref;
+    this._renderConnections();
+
+    // Dim/highlight cards
+    Object.entries(this.cards).forEach(([name, card]) => {
+      const related = name === ref.from_table || name === ref.to_table;
+      card.style.opacity = related ? '1' : '0.4';
+      card.classList.toggle('highlighted', related);
+    });
+
+    // Highlight specific col-rows in the two involved cards
+    this.canvas.querySelectorAll('.col-row.ref-highlight').forEach(r => r.classList.remove('ref-highlight'));
+    const fromCard = this.cards[ref.from_table];
+    const toCard   = this.cards[ref.to_table];
+    if (fromCard) {
+      const row = fromCard.querySelector(`.col-row[data-col="${ref.from_col}"]`);
+      if (row) row.classList.add('ref-highlight');
+    }
+    if (toCard) {
+      const row = toCard.querySelector(`.col-row[data-col="${ref.to_col}"]`);
+      if (row) row.classList.add('ref-highlight');
+    }
+
+    this.container.dispatchEvent(new CustomEvent('refSelected', { detail: ref, bubbles: true }));
+  }
+
   focusTable(name) {
     this.activeTable = name;
+    this._activeRef  = null;
     this._highlightConnections(name);
     Object.values(this.cards).forEach(c => c.classList.remove('highlighted'));
     const card = this.cards[name];
