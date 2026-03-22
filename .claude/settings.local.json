@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venv/Scripts/python.exe -c \"import sqlite3; conn = sqlite3.connect\\(''data/app.db''\\); conn.execute\\(\"\"ALTER TABLE projects ADD COLUMN column_notes_data TEXT DEFAULT ''{}''\"\"\\); conn.commit\\(\\); conn.close\\(\\); print\\(''OK''\\)\")"
+      "Bash(ls c:/Users/danie/Desktop/repos/futura_dbml/*.py c:/Users/danie/Desktop/repos/futura_dbml/static/)",
+      "Read(//c/Users/danie/.claude/projects/c--Users-danie-Desktop-repos-futura-dbml/memory/**)"
     ]
   }
 }

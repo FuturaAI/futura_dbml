@@ -26,6 +26,10 @@ class Project(Base):
     notes_data:       Mapped[str]           = mapped_column(Text, default="[]")   # post-it notes
     markdown_notes:   Mapped[Optional[str]] = mapped_column(Text, default="")
     column_notes_data: Mapped[str]          = mapped_column(Text, default="{}")   # "table::col" → note
+    enums_data:        Mapped[str]          = mapped_column(Text, default="[]")   # enum definitions from DBML
+    views_data:        Mapped[str]          = mapped_column(Text, default="[]")   # saved join views
+    doc_notes_data:    Mapped[str]          = mapped_column(Text, default="[]")   # multi-note docs
+    table_notes_data:  Mapped[str]          = mapped_column(Text, default="{}")   # tname → table note override
 
     created_at:      Mapped[Optional[datetime]] = mapped_column(
         DateTime, server_default=func.now()

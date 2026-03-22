@@ -1,0 +1,154 @@
+/* ============================================================
+   JOIN VIEW TAB — join builder, union builder, saved views
+   ============================================================ */
+.jv-wrap        { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+
+/* ── Sub-tabs (JOIN / UNION / Viste) ─────────────────────── */
+.jv-subtabs     { display:flex; gap:4px; padding:8px 14px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; }
+.jv-subtab      { display:inline-flex; align-items:center; gap:6px; padding:5px 14px; border-radius:6px; border:1px solid transparent; font-size:12px; font-weight:600; color:#64748b; cursor:pointer; background:none; transition:all .12s; }
+.jv-subtab:hover { background:#f1f5f9; color:#1e293b; }
+.jv-subtab.active { background:#3b82f6; color:#fff; border-color:#2563eb; }
+
+/* ── Panels ─────────────────────────────────────────────── */
+.jv-panel       { display:none; flex-direction:column; flex:1; overflow:hidden; }
+.jv-panel.active{ display:flex; }
+
+/* ── Toolbar bar inside each panel ──────────────────────── */
+.jv-bar         { display:flex; align-items:center; gap:10px; padding:8px 16px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; flex-wrap:wrap; }
+.jv-bar label   { font-size:11px; color:#64748b; white-space:nowrap; font-weight:500; }
+.jv-select      { padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:12px; color:var(--text); background:#fff; max-width:200px; }
+.jv-depth       { width:56px; padding:4px 8px; border-radius:6px; border:1px solid var(--border); font-size:12px; color:var(--text); background:#fff; }
+.jv-copy-btn    { margin-left:auto; padding:4px 12px; border-radius:6px; border:none; background:#e2e8f0; color:#475569; font-size:11px; font-weight:600; cursor:pointer; flex-shrink:0; }
+.jv-copy-btn:hover { background:#cbd5e1; }
+
+/* ── Scrollable graph area ───────────────────────────────── */
+.jv-scroll      { flex:1; overflow:auto; padding:24px; }
+.jv-empty       { color:#94a3b8; text-align:center; padding:60px 20px; font-size:14px; }
+
+/* ── Hop-column layout for JOIN graph ────────────────────── */
+.jv-row         { display:flex; align-items:flex-start; }
+.jv-hops        { display:flex; align-items:flex-start; gap:0; }
+.jv-hop         { display:flex; flex-direction:column; gap:14px; }
+.jv-connector   { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 10px; gap:10px; align-self:stretch; min-width:110px; }
+.jv-conn-badge  { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.jv-join-select { padding:3px 6px; border-radius:4px; border:1.5px solid; font-size:10px; font-weight:700; cursor:pointer; background:#fff; text-align:center; min-width:90px; }
+.jv-conn-cond   { border-radius:20px; padding:2px 8px; font-size:10px; font-family:monospace; white-space:nowrap; border:1.5px dashed; }
+
+/* ── JOIN table card ─────────────────────────────────────── */
+.jv-card        { width:220px; border-radius:8px; border:1.5px solid #e2e8f0; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+.jv-card-head   { padding:8px 12px; font-size:12px; font-weight:700; color:#fff; display:flex; align-items:center; justify-content:space-between; }
+.jv-root-badge  { font-size:9px; background:rgba(255,255,255,.28); border-radius:3px; padding:1px 5px; letter-spacing:.04em; }
+.jv-col-row     { display:flex; align-items:center; justify-content:space-between; padding:4px 10px; border-bottom:1px solid #f1f5f9; font-size:11px; }
+.jv-col-row.jv-join-col { padding-left:7px; border-left:3px solid; }
+.jv-col-selectable { cursor:pointer; gap:6px; }
+.jv-col-selectable:hover { background:#f8fafc; }
+.jv-col-check { flex-shrink:0; width:13px; height:13px; border-radius:3px; border:1.5px solid #94a3b8; background:#fff; }
+.jv-col-selectable[data-sel="true"]  .jv-col-check { background:#3b82f6; border-color:#3b82f6; position:relative; }
+.jv-col-selectable[data-sel="true"]  .jv-col-check::after { content:''; position:absolute; top:1px; left:2px; width:7px; height:4px; border-left:2px solid #fff; border-bottom:2px solid #fff; transform:rotate(-45deg); }
+.jv-col-selectable[data-sel="false"] { opacity:.38; }
+.jv-col-selectable[data-sel="false"] .jv-col-name { text-decoration:line-through; }
+.jv-col-name    { display:flex; align-items:center; gap:4px; color:#1e293b; }
+.jv-col-type    { color:#94a3b8; font-size:10px; font-family:monospace; }
+
+/* ── SQL preview panel ───────────────────────────────────── */
+.jv-sql-wrap    { border-top:1px solid #1e293b; flex-shrink:0; background:#0f172a; max-height:180px; display:flex; flex-direction:column; overflow:hidden; }
+.jv-sql-head    { display:flex; align-items:center; justify-content:space-between; padding:5px 14px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
+.jv-sql-head span { font-size:10px; font-weight:600; letter-spacing:.08em; color:#475569; text-transform:uppercase; }
+.jv-sql-head button { padding:2px 10px; border-radius:4px; border:none; background:#1e293b; color:#94a3b8; font-size:11px; cursor:pointer; }
+.jv-sql-head button:hover { background:#334155; color:#e2e8f0; }
+.jv-sql-pre     { padding:10px 14px; margin:0; color:#93c5fd; font-size:11px; font-family:'ui-monospace',monospace; white-space:pre; overflow-y:auto; flex:1; }
+
+/* ── UNION layout ────────────────────────────────────────── */
+.jv-union-wrap   { display:flex; align-items:flex-start; gap:0; }
+.jv-union-center { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:0 14px; align-self:center; }
+.jv-utype-btns   { display:flex; flex-direction:column; gap:4px; }
+.jv-utype-btn    { padding:5px 12px; border-radius:6px; border:1.5px solid #e2e8f0; font-size:11px; font-weight:700; cursor:pointer; background:#fff; color:#64748b; transition:all .12s; min-width:90px; text-align:center; }
+.jv-utype-btn.active { background:#3b82f6; color:#fff; border-color:#2563eb; }
+.jv-union-card   { width:240px; border-radius:8px; border:1.5px solid #e2e8f0; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+.jv-union-head   { padding:8px 12px; font-size:12px; font-weight:700; color:#fff; }
+.jv-union-col    { display:flex; align-items:center; justify-content:space-between; padding:4px 10px; border-bottom:1px solid #f1f5f9; font-size:11px; }
+.jv-union-col.jv-match   { background:#eff6ff; border-left:3px solid #3b82f6; padding-left:7px; }
+.jv-union-col.jv-nomatch { color:#94a3b8; font-style:italic; }
+
+/* ── Include/exclude toggle ──────────────────────────────── */
+.jv-incl-btn {
+  width:20px; height:20px; border-radius:50%; border:1.5px solid #22c55e;
+  background:#f0fdf4; color:#16a34a; font-size:11px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all .15s; padding:0; line-height:1;
+}
+.jv-incl-btn:hover { filter:brightness(0.92); }
+.jv-incl-btn.excluded {
+  border-color:#e2e8f0; background:#f8fafc; color:#cbd5e1;
+}
+.jv-incl-btn.excluded::before { content:'✕'; }
+.jv-incl-btn:not(.excluded)::before { content:'✓'; }
+
+/* ── Add manual join ─────────────────────────────────────── */
+.jv-add-join-btn  { border:1.5px dashed #cbd5e1; background:transparent; color:#94a3b8;
+                    border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer;
+                    transition:border-color .15s,color .15s; }
+.jv-add-join-btn:hover { border-color:#3b82f6; color:#3b82f6; }
+.jv-add-join-form { display:flex; flex-direction:column; gap:5px; background:#f8fafc;
+                    border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 10px;
+                    min-width:200px; }
+.jv-manual-jt    { font-size:10px; font-weight:700; border:1.5px solid #e2e8f0; border-radius:4px;
+                    padding:2px 4px; background:#fff; cursor:pointer; }
+.jv-manual-cond  { display:flex; flex-direction:column; gap:4px; }
+.jv-manual-cond select { font-size:10px; border:1.5px solid #e2e8f0; border-radius:4px;
+                          padding:2px 4px; background:#fff; cursor:pointer; }
+.jv-manual-confirm { background:#3b82f6; color:#fff; border:none; border-radius:5px;
+                      padding:3px 9px; font-size:11px; font-weight:600; cursor:pointer; }
+.jv-manual-confirm:hover { background:#2563eb; }
+.jv-manual-cancel  { background:#f1f5f9; color:#64748b; border:none; border-radius:5px;
+                      padding:3px 9px; font-size:11px; cursor:pointer; }
+.jv-conn-badge--manual .jv-conn-cond { border-style:solid; }
+.jv-conn-cond--manual { border-style:solid !important; }
+
+/* ── Result card ─────────────────────────────────────────── */
+.jv-result-card        { width:250px; box-shadow:0 2px 12px rgba(0,0,0,.14); border-color:#334155; }
+.jv-result-group-label { padding:4px 10px; font-size:10px; font-weight:700;
+                          color:#fff; letter-spacing:.04em; text-transform:uppercase; }
+
+/* ── Save view button ────────────────────────────────────── */
+.jv-save-view-btn { display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:6px;
+                    background:#0f172a; color:#e2e8f0; border:none; cursor:pointer; font-size:12px; font-weight:600; }
+.jv-save-view-btn:hover { background:#1e293b; }
+
+/* ── Export dropdown (join-view specific) ────────────────── */
+.jv-export-wrap  { position:relative; }
+.jv-export-btn   { display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:6px;
+                   background:#0f172a; color:#e2e8f0; border:none; cursor:pointer; font-size:12px; font-weight:600; }
+.jv-export-btn:hover { background:#1e293b; }
+.jv-export-menu  { position:absolute; top:calc(100% + 4px); right:0; background:#fff;
+                   border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.12);
+                   overflow:hidden; z-index:50; min-width:170px; }
+.jv-export-menu button { display:block; width:100%; text-align:left; padding:9px 14px;
+                          border:none; background:none; cursor:pointer; font-size:12px; color:#1e293b; }
+.jv-export-menu button:hover { background:#f8fafc; }
+
+/* ── Views badge on sub-tab ──────────────────────────────── */
+.jv-views-badge { background:#3b82f6; color:#fff; border-radius:9px; padding:1px 5px;
+                  font-size:10px; font-weight:700; margin-left:3px; }
+
+/* ── Saved views panel ───────────────────────────────────── */
+.jv-saved-views    { display:flex; flex-wrap:wrap; gap:18px; padding:24px; align-items:flex-start; }
+.jv-view-card      { background:#fff; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;
+                     width:320px; box-shadow:0 2px 8px rgba(0,0,0,.07); }
+.jv-view-head      { display:flex; align-items:center; justify-content:space-between;
+                     padding:9px 12px; color:#fff; }
+.jv-view-name      { font-weight:700; font-size:13px; }
+.jv-view-btn       { display:flex; align-items:center; gap:4px; border:none; border-radius:5px;
+                     padding:3px 8px; cursor:pointer; font-size:11px; font-weight:600; }
+.jv-view-load      { background:rgba(255,255,255,.25); color:#fff; }
+.jv-view-load:hover{ background:rgba(255,255,255,.4); }
+.jv-view-del       { background:rgba(255,255,255,.15); color:#fff; }
+.jv-view-del:hover { background:rgba(239,68,68,.6); }
+.jv-view-tables    { padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+.jv-view-table-head{ font-size:11px; font-weight:700; padding:2px 6px; margin-bottom:4px;
+                     display:flex; align-items:center; gap:6px; }
+.jv-view-hop       { font-size:9px; font-weight:400; background:#f1f5f9; color:#64748b;
+                     border-radius:3px; padding:1px 4px; }
+.jv-view-cols      { display:flex; flex-wrap:wrap; gap:4px; padding-left:6px; }
+.jv-view-col       { display:flex; align-items:center; background:#f8fafc; border:1px solid #e2e8f0;
+                     border-radius:4px; padding:2px 6px; font-size:11px; color:#334155; }

@@ -74,9 +74,22 @@ def parse_dbml(content: str) -> dict:
         for col in tbl["columns"]:
             col["fk"] = (full_name, col["name"]) in fk_set
 
+    # ── enums ─────────────────────────────────────────────────────────────────
+    enums: list[dict] = []
+    for enum in getattr(parsed, "enums", []):
+        schema    = getattr(enum, "schema", None) or ""
+        full_name = f"{schema}.{enum.name}" if schema else enum.name
+        enums.append({
+            "name":      enum.name,
+            "schema":    schema,
+            "full_name": full_name,
+            "values":    [item.name for item in enum.items],
+        })
+
     return {
-        "tables":   tables,
-        "groups":   groups,
+        "tables":    tables,
+        "groups":    groups,
         "ungrouped": ungrouped,
-        "refs":     refs,
+        "refs":      refs,
+        "enums":     enums,
     }

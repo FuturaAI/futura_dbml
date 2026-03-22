@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from sqlalchemy import text
+
 from database import Base, engine, get_db
 from models import Project
 from parser import parse_dbml
@@ -19,6 +21,29 @@ from parser import parse_dbml
 # ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 Base.metadata.create_all(bind=engine)
+
+# Migration: add enums_data column to existing DBs (idempotent)
+with engine.connect() as _conn:
+    try:
+        _conn.execute(text("ALTER TABLE projects ADD COLUMN enums_data TEXT NOT NULL DEFAULT '[]'"))
+        _conn.commit()
+    except Exception:
+        pass  # column already exists
+    try:
+        _conn.execute(text("ALTER TABLE projects ADD COLUMN views_data TEXT NOT NULL DEFAULT '[]'"))
+        _conn.commit()
+    except Exception:
+        pass  # column already exists
+    try:
+        _conn.execute(text("ALTER TABLE projects ADD COLUMN doc_notes_data TEXT NOT NULL DEFAULT '[]'"))
+        _conn.commit()
+    except Exception:
+        pass  # column already exists
+    try:
+        _conn.execute(text("ALTER TABLE projects ADD COLUMN table_notes_data TEXT NOT NULL DEFAULT '{}'"))
+        _conn.commit()
+    except Exception:
+        pass  # column already exists
 
 app = FastAPI(title="DBML Docs")
 
@@ -41,6 +66,10 @@ def _to_dict(p: Project) -> dict:
         "notes":           json.loads(p.notes_data           or "[]"),
         "markdown_notes":  p.markdown_notes                  or "",
         "column_notes":    json.loads(p.column_notes_data    or "{}"),
+        "enums":           json.loads(p.enums_data           or "[]"),
+        "views":           json.loads(p.views_data           or "[]"),
+        "doc_notes":       json.loads(p.doc_notes_data       or "[]"),
+        "table_notes":     json.loads(p.table_notes_data     or "{}"),
         "created_at":      p.created_at.strftime("%d/%m/%Y") if p.created_at else "",
     }
 
@@ -90,6 +119,7 @@ async def upload(
         groups_data    = json.dumps(parsed["groups"]),
         refs_data      = json.dumps(parsed["refs"]),
         ungrouped_data = json.dumps(parsed["ungrouped"]),
+        enums_data     = json.dumps(parsed["enums"]),
     )
     db.add(project)
     db.commit()
@@ -155,6 +185,43 @@ async def save_markdown(pid: str, request: Request, db: Session = Depends(get_db
     return {"ok": True}
 
 
+@app.post("/project/{pid}/table_notes")
+async def save_table_notes(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    p.table_notes_data = json.dumps(await request.json())
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/project/{pid}/doc_notes")
+async def save_doc_notes(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    p.doc_notes_data = json.dumps(await request.json())
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/project/{pid}/views")
+async def save_view(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    body = await request.json()
+    views = json.loads(p.views_data or "[]")
+    view_id = str(uuid.uuid4())[:8]
+    views.append({**body, "id": view_id})
+    p.views_data = json.dumps(views)
+    db.commit()
+    return {"ok": True, "id": view_id}
+
+
+@app.delete("/project/{pid}/views/{vid}")
+async def delete_view(pid: str, vid: str, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    views = json.loads(p.views_data or "[]")
+    p.views_data = json.dumps([v for v in views if v.get("id") != vid])
+    db.commit()
+    return {"ok": True}
+
+
 @app.post("/project/{pid}/column_notes")
 async def save_column_notes(pid: str, request: Request, db: Session = Depends(get_db)):
     p = _get_or_404(db, pid)
@@ -179,11 +246,15 @@ async def reupload_project(
         parsed = parse_dbml(content)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    p.tables_data     = json.dumps(parsed["tables"])
-    p.groups_data     = json.dumps(parsed["groups"])
-    p.refs_data       = json.dumps(parsed["refs"])
-    p.ungrouped_data  = json.dumps(parsed["ungrouped"])
-    p.saved_positions = "{}"
+    p.tables_data    = json.dumps(parsed["tables"])
+    p.groups_data    = json.dumps(parsed["groups"])
+    p.refs_data      = json.dumps(parsed["refs"])
+    p.ungrouped_data = json.dumps(parsed["ungrouped"])
+    p.enums_data     = json.dumps(parsed["enums"])
+    # Keep positions for tables that still exist; drop positions for removed tables
+    old_positions = json.loads(p.saved_positions or "{}")
+    new_table_keys = set(parsed["tables"].keys())
+    p.saved_positions = json.dumps({k: v for k, v in old_positions.items() if k in new_table_keys})
     db.commit()
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
@@ -196,7 +267,7 @@ async def export_project(pid: str, db: Session = Depends(get_db)):
     writer.writerow([
         "id", "name", "tables_data", "groups_data", "refs_data",
         "ungrouped_data", "saved_positions", "notes_data",
-        "markdown_notes", "column_notes_data",
+        "markdown_notes", "column_notes_data", "enums_data", "views_data", "doc_notes_data",
     ])
     writer.writerow([
         p.id,
@@ -209,6 +280,9 @@ async def export_project(pid: str, db: Session = Depends(get_db)):
         p.notes_data     or "[]",
         p.markdown_notes or "",
         p.column_notes_data or "{}",
+        p.enums_data     or "[]",
+        p.views_data     or "[]",
+        p.doc_notes_data or "[]",
     ])
     filename = p.name.replace(" ", "_") + ".dbmldoc.csv"
     return StreamingResponse(
@@ -235,16 +309,19 @@ async def import_project(
         raise HTTPException(status_code=400, detail="File CSV non valido o non riconosciuto")
 
     new_p = Project(
-        id              = str(uuid.uuid4())[:8],
-        name            = row.get("name", "Progetto importato"),
-        tables_data     = row.get("tables_data",     "{}"),
-        groups_data     = row.get("groups_data",     "{}"),
-        refs_data       = row.get("refs_data",       "[]"),
-        ungrouped_data  = row.get("ungrouped_data",  "[]"),
-        saved_positions = row.get("saved_positions", "{}"),
-        notes_data      = row.get("notes_data",      "[]"),
-        markdown_notes  = row.get("markdown_notes",  ""),
+        id                = str(uuid.uuid4())[:8],
+        name              = row.get("name", "Progetto importato"),
+        tables_data       = row.get("tables_data",       "{}"),
+        groups_data       = row.get("groups_data",       "{}"),
+        refs_data         = row.get("refs_data",         "[]"),
+        ungrouped_data    = row.get("ungrouped_data",    "[]"),
+        saved_positions   = row.get("saved_positions",   "{}"),
+        notes_data        = row.get("notes_data",        "[]"),
+        markdown_notes    = row.get("markdown_notes",    ""),
         column_notes_data = row.get("column_notes_data", "{}"),
+        enums_data        = row.get("enums_data",        "[]"),
+        views_data        = row.get("views_data",        "[]"),
+        doc_notes_data    = row.get("doc_notes_data",    "[]"),
     )
     db.add(new_p)
     db.commit()
@@ -265,6 +342,9 @@ async def duplicate_project(pid: str, db: Session = Depends(get_db)):
         notes_data        = p.notes_data,
         markdown_notes    = p.markdown_notes,
         column_notes_data = p.column_notes_data,
+        enums_data        = p.enums_data,
+        views_data        = p.views_data,
+        doc_notes_data    = p.doc_notes_data,
     )
     db.add(new_p)
     db.commit()
