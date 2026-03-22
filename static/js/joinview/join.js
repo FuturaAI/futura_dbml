@@ -1,5 +1,5 @@
 /**
- * @file joinview.js — JOIN builder, UNION builder, saved views
+ * @file joinview/join.js — shared state, BFS, JOIN builder
  */
 
 // ── Shared colours ────────────────────────────────────────────────────────────
@@ -201,9 +201,58 @@ function _jvUpdateCardOpacities() {
   });
 }
 
+// ── Dialect quoting ───────────────────────────────────────────────────────────
+
+function _jvSyncDialect(val) {
+  ['jvDialect', 'jvDialectUnion'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+}
+
+function _jvQuote(name) {
+  const d = document.getElementById('jvDialect')?.value || 'generic';
+  if (d === 'mssql')                        return `[${name}]`;
+  if (d === 'postgresql' || d === 'sqlite') return `"${name}"`;
+  return name;
+}
+
+// ── SQL panel resize ──────────────────────────────────────────────────────────
+
+function _jvStartResizeSql(e, handle, wrapId) {
+  e.preventDefault();
+  const wrap    = document.getElementById(wrapId);
+  const graphId = wrapId === 'jvSQLWrap' ? 'jvGraph' : 'jvUnionGraph';
+  const graph   = document.getElementById(graphId);
+  const startY  = e.clientY;
+  const startH  = wrap.offsetHeight || 180;
+  const resizeH = handle.offsetHeight || 20;
+
+  handle.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'ns-resize';
+
+  function onMove(ev) {
+    ev.preventDefault();
+    const h = Math.max(60, Math.min(window.innerHeight * 0.75, startH + (startY - ev.clientY)));
+    wrap.style.height = h + 'px';
+    handle.style.bottom = h + 'px';
+    graph.style.paddingBottom = (h + resizeH) + 'px';
+  }
+  function onUp() {
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 // ── BFS ───────────────────────────────────────────────────────────────────────
 
-function _jvBFS(root, depth) {
+function _jvBFS(root, depth, excluded = []) {
   const refs   = PROJECT.refs   || [];
   const tables = PROJECT.tables || {};
   const adj    = {};
@@ -222,6 +271,7 @@ function _jvBFS(root, depth) {
     if (hop >= depth) continue;
     for (const { neighbor, myCol, neighborCol } of (adj[tbl] || [])) {
       if (!tables[neighbor] || visited.has(neighbor)) continue;
+      if (excluded.length && (excluded.includes(`${tbl}::${neighbor}`) || excluded.includes(`${neighbor}::${tbl}`))) continue;
       visited.set(neighbor, hop + 1);
       queue.push([neighbor, hop + 1]);
       edges.push({ from: tbl, fromCol: myCol, to: neighbor, toCol: neighborCol, colorIdx: edges.length });
@@ -246,8 +296,10 @@ function renderJoinView(resetState = true) {
 
   if (!root) {
     graph.innerHTML = '<div class="jv-empty">Seleziona una tabella di partenza per esplorare i join</div>';
-    document.getElementById('jvSQLWrap').style.display  = 'none';
-    document.getElementById('jvCopyBtn').style.display  = 'none';
+    document.getElementById('jvSQLWrap').style.display    = 'none';
+    document.getElementById('jvSQLResize').style.display  = 'none';
+    document.getElementById('jvCopyBtn').style.display    = 'none';
+    graph.style.paddingBottom = '';
     return;
   }
 
@@ -364,7 +416,14 @@ function renderJoinView(resetState = true) {
   graph.dataset.visited = JSON.stringify([...visited]);
 
   _rebuildJoinSQL();
-  document.getElementById('jvSQLWrap').style.display     = '';
+  const sqlWrap   = document.getElementById('jvSQLWrap');
+  const sqlResize = document.getElementById('jvSQLResize');
+  const wrapH     = sqlWrap.offsetHeight || 180;
+  const resizeH   = 20;
+  sqlWrap.style.display   = '';
+  sqlResize.style.display = '';
+  sqlResize.style.bottom  = wrapH + 'px';
+  graph.style.paddingBottom = (wrapH + resizeH) + 'px';
   document.getElementById('jvCopyBtn').style.display     = '';
   document.getElementById('jvSaveViewBtn').style.display = '';
   document.getElementById('jvExportWrap').style.display  = '';
@@ -429,7 +488,7 @@ function _rebuildJoinSQL() {
     const a = aliases[tbl];
     for (const c of t.columns) {
       if (_jvSelectedCols[`${tbl}::${c.name}`] === false) continue;
-      cols.push(`  ${a}.${c.name}`);
+      cols.push(`  ${a}.${_jvQuote(c.name)}`);
     }
   }
   for (const e of _jvManualEdges) {
@@ -438,26 +497,29 @@ function _rebuildJoinSQL() {
     const a = aliases[e.to];
     for (const c of t.columns) {
       if (_jvSelectedCols[`${e.to}::${c.name}`] === false) continue;
-      cols.push(`  ${a}.${c.name}`);
+      cols.push(`  ${a}.${_jvQuote(c.name)}`);
     }
   }
 
-  const rootName  = tables[root]?.name || root.split('.').pop();
-  let sql = `SELECT\n${cols.join(',\n')}\nFROM ${rootName} ${aliases[root]}`;
+  const rootName = tables[root]?.name || root.split('.').pop();
+  const dialect  = document.getElementById('jvDialect')?.value || 'generic';
+  let sql = `SELECT\n${cols.join(',\n')}\nFROM ${_jvQuote(rootName)} ${aliases[root]}`;
 
   const sortedEdges = [...edges].sort((a, b) => (visited.get(a.to) ?? 0) - (visited.get(b.to) ?? 0));
   for (const e of sortedEdges) {
     if (_jvExcluded.has(e.from + '::' + e.to) || excl.has(e.to)) continue;
-    const jt    = _jvGetJoinType(e.from, e.to);
+    let jt      = _jvGetJoinType(e.from, e.to);
     const tName = tables[e.to]?.name || e.to.split('.').pop();
-    sql += `\n${jt} ${tName} ${aliases[e.to]}`;
-    sql += `\n  ON ${aliases[e.from]}.${e.fromCol} = ${aliases[e.to]}.${e.toCol}`;
+    if (dialect === 'sqlite' && jt === 'FULL JOIN') jt = 'LEFT JOIN /*FULL JOIN non supportato in SQLite*/';
+    sql += `\n${jt} ${_jvQuote(tName)} ${aliases[e.to]}`;
+    sql += `\n  ON ${aliases[e.from]}.${_jvQuote(e.fromCol)} = ${aliases[e.to]}.${_jvQuote(e.toCol)}`;
   }
   for (const e of _jvManualEdges) {
-    const jt    = _jvGetJoinType(e.from, e.to);
+    let jt      = _jvGetJoinType(e.from, e.to);
     const tName = tables[e.to]?.name || e.to.split('.').pop();
-    sql += `\n${jt} ${tName} ${aliases[e.to]}`;
-    sql += `\n  ON ${aliases[e.from]}.${e.fromCol} = ${aliases[e.to]}.${e.toCol}`;
+    if (dialect === 'sqlite' && jt === 'FULL JOIN') jt = 'LEFT JOIN /*FULL JOIN non supportato in SQLite*/';
+    sql += `\n${jt} ${_jvQuote(tName)} ${aliases[e.to]}`;
+    sql += `\n  ON ${aliases[e.from]}.${_jvQuote(e.fromCol)} = ${aliases[e.to]}.${_jvQuote(e.toCol)}`;
   }
   sql += ';';
 
@@ -521,10 +583,16 @@ function _jvUpdateResultCard(aliases, visited, excl, tables) {
 
 function copyJoinSQL() {
   const txt = document.getElementById('jvSQLCode').textContent;
-  navigator.clipboard.writeText(txt).then(() => {
+  const _flash = () => {
     const btn = document.getElementById('jvCopyBtn');
     btn.textContent = 'Copiato!';
     setTimeout(() => btn.textContent = 'Copia SQL', 1500);
+  };
+  navigator.clipboard.writeText(txt).then(_flash).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    _flash();
   });
 }
 
@@ -604,297 +672,4 @@ function _jvDownload(filename, text) {
   a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
   a.download = filename;
   a.click();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  SAVED VIEWS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-let _jvCurrentViewId = null;
-
-function _setCurrentView(id) {
-  _jvCurrentViewId = id;
-  const label = document.getElementById('jvSaveViewLabel');
-  if (label) label.textContent = id ? 'Aggiorna Vista' : 'Crea Vista';
-}
-
-async function saveJoinView() {
-  const graph = document.getElementById('jvGraph');
-  const root  = graph.dataset.root;
-  const depth = parseInt(document.getElementById('jvDepth').value) || 1;
-
-  const payload = {
-    root, depth,
-    joinTypes:    { ..._jvJoinTypes },
-    excluded:     [..._jvExcluded],
-    selectedCols: { ..._jvSelectedCols },
-    manualEdges:  _jvManualEdges.map(e => ({ ...e })),
-  };
-
-  try {
-    if (_jvCurrentViewId) {
-      const res = await fetch(`/project/${PROJECT.id}/views/${_jvCurrentViewId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) { _showApiError('Errore aggiornamento vista (' + res.status + ')'); return; }
-      const idx = (PROJECT.views || []).findIndex(v => v.id === _jvCurrentViewId);
-      if (idx !== -1) Object.assign(PROJECT.views[idx], payload);
-    } else {
-      const name = prompt('Nome della vista:', 'Vista ' + ((PROJECT.views?.length || 0) + 1));
-      if (!name) return;
-      const res = await fetch(`/project/${PROJECT.id}/views`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, name }),
-      });
-      if (!res.ok) { _showApiError('Errore creazione vista (' + res.status + ')'); return; }
-      const data = await res.json();
-      PROJECT.views = PROJECT.views || [];
-      PROJECT.views.push({ ...payload, name, id: data.id });
-      _setCurrentView(data.id);
-    }
-  } catch {
-    _showApiError('Errore di rete (salvataggio vista)');
-    return;
-  }
-
-  _updateViewsBadge();
-  renderViewsList();
-}
-
-async function deleteView(id) {
-  try {
-    const res = await fetch(`/project/${PROJECT.id}/views/${id}`, { method: 'DELETE' });
-    if (!res.ok) { _showApiError('Errore eliminazione vista (' + res.status + ')'); return; }
-  } catch {
-    _showApiError('Errore di rete (eliminazione vista)');
-    return;
-  }
-  PROJECT.views = (PROJECT.views || []).filter(v => v.id !== id);
-  if (_jvCurrentViewId === id) _setCurrentView(null);
-  _updateViewsBadge();
-  renderViewsList();
-}
-
-async function renameView(id, newName) {
-  if (!newName.trim()) return;
-  try {
-    const res = await fetch(`/project/${PROJECT.id}/views/${id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim() }),
-    });
-    if (!res.ok) { _showApiError('Errore rinomina vista (' + res.status + ')'); return; }
-  } catch {
-    _showApiError('Errore di rete (rinomina vista)');
-    return;
-  }
-  const v = (PROJECT.views || []).find(v => v.id === id);
-  if (v) v.name = newName.trim();
-}
-
-function loadView(v) {
-  Object.keys(_jvJoinTypes).forEach(k => delete _jvJoinTypes[k]);
-  Object.assign(_jvJoinTypes, v.joinTypes || {});
-  _jvExcluded.clear();
-  (v.excluded || []).forEach(k => _jvExcluded.add(k));
-  Object.keys(_jvSelectedCols).forEach(k => delete _jvSelectedCols[k]);
-  Object.assign(_jvSelectedCols, v.selectedCols || {});
-  _jvManualEdges = (v.manualEdges || []).map(e => ({ ...e }));
-  _setCurrentView(v.id);
-  document.getElementById('jvRootSelect').value = v.root;
-  document.getElementById('jvDepth').value = v.depth;
-  switchJvTab('join', document.getElementById('jvSubJoin'));
-  renderJoinView(false);
-}
-
-function _updateViewsBadge() {
-  const n     = (PROJECT.views || []).length;
-  const badge = document.getElementById('jvViewsBadge');
-  badge.textContent   = n;
-  badge.style.display = n > 0 ? '' : 'none';
-}
-
-function renderViewsList() {
-  const el     = document.getElementById('jvViewsList');
-  const views  = PROJECT.views || [];
-  if (!views.length) {
-    el.innerHTML = '<div class="jv-empty">Nessuna vista salvata. Usa il builder JOIN e clicca <strong>Crea Vista</strong>.</div>';
-    return;
-  }
-  const tables = PROJECT.tables || {};
-  let html = '<div class="jv-saved-views">';
-  for (const v of views) {
-    const { visited } = _jvBFS_static(v.root, v.depth, v.excluded || []);
-    const color    = _jvGroupColor(v.root);
-    const isActive = _jvCurrentViewId === v.id;
-    html += `<div class="jv-view-card${isActive ? ' jv-view-active' : ''}">
-      <div class="jv-view-head" style="background:${color}">
-        <span class="jv-view-name-wrap">
-          <span class="jv-view-name" contenteditable="true" spellcheck="false"
-            data-id="${v.id}"
-            onblur="renameView('${v.id}', this.innerText)"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-          >${v.name}</span>
-          <svg class="jv-rename-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </span>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="jv-view-btn jv-view-load" onclick="loadView(${JSON.stringify(v).replace(/"/g,'&quot;')})">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 12 19 12"/><polyline points="13 6 19 12 13 18"/></svg>
-            ${isActive ? 'Attiva' : 'Apri'}
-          </button>
-          <button class="jv-view-btn jv-view-del" onclick="deleteView('${v.id}')">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="jv-view-tables">`;
-
-    const sorted = [...visited.entries()].sort((a, b) => a[1] - b[1]);
-    for (const [tname, hop] of sorted) {
-      const t = tables[tname]; if (!t) continue;
-      const c = _jvGroupColor(tname);
-      const selCols = t.columns.filter(col => v.selectedCols?.[`${tname}::${col.name}`] !== false);
-      html += `<div class="jv-view-table">
-        <div class="jv-view-table-head" style="border-left:3px solid ${c};color:${c}">
-          ${hop > 0 ? '<span class="jv-view-hop">hop ' + hop + '</span>' : '<span class="jv-view-hop">ROOT</span>'}
-          ${t.name}
-        </div>
-        <div class="jv-view-cols">`;
-      for (const col of selCols) {
-        html += `<span class="jv-view-col">${col.name}<code class="jv-col-type" style="margin-left:4px">${col.type}</code></span>`;
-      }
-      html += `</div></div>`;
-    }
-    html += `</div></div>`;
-  }
-  html += '</div>';
-  el.innerHTML = html;
-}
-
-// BFS without mutating global state (used for view cards)
-function _jvBFS_static(root, depth, excluded) {
-  const refs   = PROJECT.refs   || [];
-  const tables = PROJECT.tables || {};
-  const adj    = {};
-  for (const r of refs) {
-    if (!adj[r.from_table]) adj[r.from_table] = [];
-    adj[r.from_table].push({ to: r.to_table, fromCol: r.from_col, toCol: r.to_col });
-    if (!adj[r.to_table]) adj[r.to_table] = [];
-    adj[r.to_table].push({ to: r.from_table, fromCol: r.to_col, toCol: r.from_col });
-  }
-  const visited = new Map([[root, 0]]);
-  const edges   = [];
-  const queue   = [root];
-  while (queue.length) {
-    const cur = queue.shift();
-    const hop = visited.get(cur);
-    if (hop >= depth) continue;
-    for (const nb of (adj[cur] || [])) {
-      if (visited.has(nb.to)) continue;
-      if (excluded.includes(`${cur}::${nb.to}`) || excluded.includes(`${nb.to}::${cur}`)) continue;
-      visited.set(nb.to, hop + 1);
-      edges.push({ from: cur, to: nb.to, fromCol: nb.fromCol, toCol: nb.toCol });
-      queue.push(nb.to);
-    }
-  }
-  return { visited, edges };
-}
-
-// Init badge on page load
-(function () { _updateViewsBadge(); })();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  UNION BUILDER
-// ═══════════════════════════════════════════════════════════════════════════════
-
-let _jvUnionType = 'UNION ALL';
-
-function selectUnionType(btn) {
-  document.querySelectorAll('.jv-utype-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _jvUnionType = btn.dataset.utype;
-  renderUnionView();
-}
-
-function renderUnionView() {
-  const tA   = document.getElementById('jvUnionA').value;
-  const tB   = document.getElementById('jvUnionB').value;
-  const area = document.getElementById('jvUnionGraph');
-
-  if (!tA || !tB) {
-    area.innerHTML = '<div class="jv-empty">Seleziona due tabelle per confrontarle con UNION</div>';
-    document.getElementById('jvUnionSQLWrap').style.display = 'none';
-    document.getElementById('jvUnionCopyBtn').style.display = 'none';
-    return;
-  }
-  if (tA === tB) {
-    area.innerHTML = '<div class="jv-empty">Seleziona due tabelle diverse</div>';
-    return;
-  }
-
-  const tables = PROJECT.tables || {};
-  const tblA   = tables[tA], tblB = tables[tB];
-  if (!tblA || !tblB) return;
-
-  const colsA    = tblA.columns, colsB = tblB.columns;
-  const matchedB = new Set();
-  const matches  = colsA.map(ca => {
-    const cb = colsB.find(c => c.name.toLowerCase() === ca.name.toLowerCase());
-    if (cb) matchedB.add(cb.name.toLowerCase());
-    return { ca, cb: cb || null };
-  });
-  const onlyB  = colsB.filter(c => !matchedB.has(c.name.toLowerCase()));
-  const colorA = _jvGroupColor(tA), colorB = _jvGroupColor(tB);
-
-  let hA = `<div class="jv-union-card"><div class="jv-union-head" style="background:${colorA}">${tblA.name || tA}</div>`;
-  for (const { ca, cb } of matches) {
-    hA += `<div class="jv-union-col ${cb ? 'jv-match' : ''}"><span>${ca.name}</span><code class="jv-col-type">${ca.type}</code></div>`;
-  }
-  for (const _ of onlyB) {
-    hA += `<div class="jv-union-col jv-nomatch"><span>\u2014</span><code class="jv-col-type"></code></div>`;
-  }
-  hA += `</div>`;
-
-  const hC = `<div class="jv-union-center">
-    <div style="font-size:13px;font-weight:700;color:#3b82f6;letter-spacing:.05em">${_jvUnionType}</div>
-    <div style="font-size:10px;color:#94a3b8">${matches.filter(m=>m.cb).length} colonne in comune</div>
-  </div>`;
-
-  let hB = `<div class="jv-union-card"><div class="jv-union-head" style="background:${colorB}">${tblB.name || tB}</div>`;
-  for (const { ca, cb } of matches) {
-    hB += `<div class="jv-union-col ${cb ? 'jv-match' : 'jv-nomatch'}"><span>${cb ? cb.name : '\u2014'}</span><code class="jv-col-type">${cb ? cb.type : ''}</code></div>`;
-  }
-  for (const c of onlyB) {
-    hB += `<div class="jv-union-col jv-match"><span>${c.name}</span><code class="jv-col-type">${c.type}</code></div>`;
-  }
-  hB += `</div>`;
-
-  area.innerHTML = `<div class="jv-union-wrap">${hA}${hC}${hB}</div>`;
-
-  const allColNames = [...matches.map(m => m.ca.name), ...onlyB.map(c => c.name)];
-  const selA = allColNames.map(n => {
-    const col = colsA.find(c => c.name.toLowerCase() === n.toLowerCase());
-    return col ? `  "${col.name}"` : `  NULL AS "${n}"`;
-  });
-  const selB = allColNames.map(n => {
-    const col = colsB.find(c => c.name.toLowerCase() === n.toLowerCase());
-    return col ? `  "${col.name}"` : `  NULL AS "${n}"`;
-  });
-
-  const nameA = tblA.name || tA.split('.').pop();
-  const nameB = tblB.name || tB.split('.').pop();
-  const sql   = `SELECT\n${selA.join(',\n')}\nFROM ${nameA}\n${_jvUnionType}\nSELECT\n${selB.join(',\n')}\nFROM ${nameB};`;
-
-  document.getElementById('jvUnionSQLCode').textContent = sql;
-  document.getElementById('jvUnionSQLWrap').style.display = '';
-  document.getElementById('jvUnionCopyBtn').style.display = '';
-}
-
-function copyUnionSQL() {
-  const txt = document.getElementById('jvUnionSQLCode').textContent;
-  navigator.clipboard.writeText(txt).then(() => {
-    const btn = document.getElementById('jvUnionCopyBtn');
-    btn.textContent = 'Copiato!';
-    setTimeout(() => btn.textContent = 'Copia SQL', 1500);
-  });
 }

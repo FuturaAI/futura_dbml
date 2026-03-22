@@ -10,8 +10,8 @@
 .jv-subtab.active { background:#3b82f6; color:#fff; border-color:#2563eb; }
 
 /* ── Panels ─────────────────────────────────────────────── */
-.jv-panel       { display:none; flex-direction:column; flex:1; overflow:hidden; }
-.jv-panel.active{ display:flex; }
+.jv-panel       { display:none; flex-direction:column; flex:1; overflow:hidden; min-height:0; }
+.jv-panel.active{ display:flex; position:relative; }
 
 /* ── Toolbar bar inside each panel ──────────────────────── */
 .jv-bar         { display:flex; align-items:center; gap:10px; padding:8px 16px; border-bottom:1px solid var(--border); background:var(--bg2); flex-shrink:0; flex-wrap:wrap; }
@@ -22,7 +22,7 @@
 .jv-copy-btn:hover { background:#cbd5e1; }
 
 /* ── Scrollable graph area ───────────────────────────────── */
-.jv-scroll      { flex:1; overflow:auto; padding:24px; }
+.jv-scroll      { flex:1; overflow:auto; padding:24px; min-height:0; }
 .jv-empty       { color:#94a3b8; text-align:center; padding:60px 20px; font-size:14px; }
 
 /* ── Hop-column layout for JOIN graph ────────────────────── */
@@ -50,8 +50,27 @@
 .jv-col-name    { display:flex; align-items:center; gap:4px; color:#1e293b; }
 .jv-col-type    { color:#94a3b8; font-size:10px; font-family:monospace; }
 
+/* ── SQL resize handle (sits between scroll and sql-wrap) ─── */
+.jv-sql-resize  {
+  position:absolute; bottom:180px; left:0; right:0; z-index:5;
+  height:20px; cursor:ns-resize;
+  background:#1e293b; border-top:2px solid #334155; border-bottom:2px solid #334155;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition:border-color .15s, background .15s;
+  user-select:none;
+}
+.jv-sql-resize:hover, .jv-sql-resize.dragging {
+  background:#1e3a5f; border-color:#3b82f6;
+}
+.jv-sql-resize::before {
+  content:''; display:block;
+  width:40px; height:4px; border-radius:2px;
+  background:rgba(255,255,255,.25); transition:background .15s;
+}
+.jv-sql-resize:hover::before, .jv-sql-resize.dragging::before { background:#3b82f6; }
+
 /* ── SQL preview panel ───────────────────────────────────── */
-.jv-sql-wrap    { border-top:1px solid #1e293b; flex-shrink:0; background:#0f172a; max-height:180px; display:flex; flex-direction:column; overflow:hidden; }
+.jv-sql-wrap    { position:absolute; bottom:0; left:0; right:0; height:180px; background:#0f172a; display:flex; flex-direction:column; overflow:hidden; }
 .jv-sql-head    { display:flex; align-items:center; justify-content:space-between; padding:5px 14px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
 .jv-sql-head span { font-size:10px; font-weight:600; letter-spacing:.08em; color:#475569; text-transform:uppercase; }
 .jv-sql-head button { padding:2px 10px; border-radius:4px; border:none; background:#1e293b; color:#94a3b8; font-size:11px; cursor:pointer; }

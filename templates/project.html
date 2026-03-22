@@ -266,7 +266,7 @@
         <button class="zoom-btn" onclick="diagram && diagram.fitToScreen()" title="Adatta allo schermo" style="margin-left:2px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
         </button>
-        <button class="zoom-btn" onclick="diagram && diagram.resetLayout()" title="Reset layout" style="margin-left:2px">
+        <button class="zoom-btn" onclick="diagram && confirm('Reimpostare il layout? Le posizioni salvate andranno perse.') && diagram.resetLayout()" title="Reset layout" style="margin-left:2px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         </button>
       </div>
@@ -489,6 +489,13 @@
             </select>
             <label>Livello join</label>
             <input class="jv-depth" type="number" id="jvDepth" value="1" min="1" max="6" onchange="renderJoinView()" />
+            <label>Dialect</label>
+            <select class="jv-select" id="jvDialect" style="max-width:130px" onchange="_jvSyncDialect(this.value);_rebuildJoinSQL()">
+              <option value="generic">Generic SQL</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="mssql">MSSQL</option>
+              <option value="sqlite">SQLite</option>
+            </select>
             <button class="jv-copy-btn" id="jvCopyBtn" style="display:none" onclick="copyJoinSQL()">Copia SQL</button>
             <button class="jv-save-view-btn" id="jvSaveViewBtn" style="display:none" onclick="saveJoinView()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -508,6 +515,7 @@
           <div class="jv-scroll" id="jvGraph">
             <div class="jv-empty">Seleziona una tabella di partenza per esplorare i join</div>
           </div>
+          <div class="jv-sql-resize" id="jvSQLResize" style="display:none" onmousedown="_jvStartResizeSql(event,this,'jvSQLWrap')"></div>
           <div class="jv-sql-wrap" id="jvSQLWrap" style="display:none">
             <div class="jv-sql-head">
               <span>SQL generato</span>
@@ -538,11 +546,19 @@
               <option value="{{ tname }}">{{ tbl.name }}</option>
               {% endfor %}
             </select>
+            <label>Dialect</label>
+            <select class="jv-select" id="jvDialectUnion" style="max-width:130px" onchange="_jvSyncDialect(this.value);renderUnionView()">
+              <option value="generic">Generic SQL</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="mssql">MSSQL</option>
+              <option value="sqlite">SQLite</option>
+            </select>
             <button class="jv-copy-btn" id="jvUnionCopyBtn" style="display:none" onclick="copyUnionSQL()">Copia SQL</button>
           </div>
           <div class="jv-scroll" id="jvUnionGraph">
             <div class="jv-empty">Seleziona due tabelle per confrontarle con UNION</div>
           </div>
+          <div class="jv-sql-resize" id="jvUnionSQLResize" style="display:none" onmousedown="_jvStartResizeSql(event,this,'jvUnionSQLWrap')"></div>
           <div class="jv-sql-wrap" id="jvUnionSQLWrap" style="display:none">
             <div class="jv-sql-head">
               <span>SQL generato</span>
@@ -585,6 +601,9 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/static/js/docs.js"></script>
 <script src="/static/js/ui.js"></script>
-<script src="/static/js/joinview.js"></script>
+<script src="/static/js/export.js"></script>
+<script src="/static/js/joinview/join.js"></script>
+<script src="/static/js/joinview/views.js"></script>
+<script src="/static/js/joinview/union.js"></script>
 </body>
 </html>

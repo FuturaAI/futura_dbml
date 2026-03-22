@@ -4,12 +4,14 @@ import io
 import json
 import uuid
 from pathlib import Path
+import os
 
 import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from sqlalchemy import text
@@ -22,28 +24,23 @@ from parser import parse_dbml
 
 Base.metadata.create_all(bind=engine)
 
-# Migration: add enums_data column to existing DBs (idempotent)
+
+def _add_column_if_missing(conn, ddl: str) -> None:
+    """Run a DDL statement, silently ignoring 'duplicate column' errors."""
+    try:
+        conn.execute(text(ddl))
+        conn.commit()
+    except OperationalError as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
+
+
+# Idempotent migrations for columns added after initial schema creation
 with engine.connect() as _conn:
-    try:
-        _conn.execute(text("ALTER TABLE projects ADD COLUMN enums_data TEXT NOT NULL DEFAULT '[]'"))
-        _conn.commit()
-    except Exception:
-        pass  # column already exists
-    try:
-        _conn.execute(text("ALTER TABLE projects ADD COLUMN views_data TEXT NOT NULL DEFAULT '[]'"))
-        _conn.commit()
-    except Exception:
-        pass  # column already exists
-    try:
-        _conn.execute(text("ALTER TABLE projects ADD COLUMN doc_notes_data TEXT NOT NULL DEFAULT '[]'"))
-        _conn.commit()
-    except Exception:
-        pass  # column already exists
-    try:
-        _conn.execute(text("ALTER TABLE projects ADD COLUMN table_notes_data TEXT NOT NULL DEFAULT '{}'"))
-        _conn.commit()
-    except Exception:
-        pass  # column already exists
+    _add_column_if_missing(_conn, "ALTER TABLE projects ADD COLUMN enums_data TEXT NOT NULL DEFAULT '[]'")
+    _add_column_if_missing(_conn, "ALTER TABLE projects ADD COLUMN views_data TEXT NOT NULL DEFAULT '[]'")
+    _add_column_if_missing(_conn, "ALTER TABLE projects ADD COLUMN doc_notes_data TEXT NOT NULL DEFAULT '[]'")
+    _add_column_if_missing(_conn, "ALTER TABLE projects ADD COLUMN table_notes_data TEXT NOT NULL DEFAULT '{}'")
 
 app = FastAPI(title="DBML Docs")
 
@@ -74,6 +71,21 @@ def _to_dict(p: Project) -> dict:
     }
 
 
+def _to_dict_minimal(p: Project) -> dict:
+    """Lightweight dict for tab bar rendering — avoids deserialising all JSON blobs."""
+    return {
+        "id":         p.id,
+        "name":       p.name,
+        "tables":     json.loads(p.tables_data  or "{}"),
+        "groups":     json.loads(p.groups_data  or "{}"),
+        "refs":       json.loads(p.refs_data    or "[]"),
+        "created_at": p.created_at.strftime("%d/%m/%Y") if p.created_at else "",
+    }
+
+
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "10"))
+
+
 def _get_or_404(db: Session, pid: str) -> Project:
     p = db.get(Project, pid)
     if not p:
@@ -85,7 +97,7 @@ def _get_or_404(db: Session, pid: str) -> Project:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, db: Session = Depends(get_db)):
-    projects = [_to_dict(p) for p in db.query(Project).order_by(Project.name).all()]
+    projects = [_to_dict_minimal(p) for p in db.query(Project).order_by(Project.name).all()]
     return templates.TemplateResponse("index.html", {
         "request": request, "projects": projects,
     })
@@ -99,6 +111,12 @@ async def upload(
     db: Session = Depends(get_db),
 ):
     raw = await file.read()
+    if len(raw) > MAX_UPLOAD_MB * 1024 * 1024:
+        projects = [_to_dict_minimal(p) for p in db.query(Project).order_by(Project.name).all()]
+        return templates.TemplateResponse("index.html", {
+            "request": request, "projects": projects,
+            "error": f"File troppo grande (max {MAX_UPLOAD_MB} MB).",
+        })
     try:
         content = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -107,7 +125,7 @@ async def upload(
     try:
         parsed = parse_dbml(content)
     except Exception as exc:
-        projects = [_to_dict(p) for p in db.query(Project).order_by(Project.name).all()]
+        projects = [_to_dict_minimal(p) for p in db.query(Project).order_by(Project.name).all()]
         return templates.TemplateResponse("index.html", {
             "request": request, "projects": projects, "error": str(exc),
         })
@@ -129,7 +147,7 @@ async def upload(
 @app.get("/project/{pid}", response_class=HTMLResponse)
 async def project_view(request: Request, pid: str, db: Session = Depends(get_db)):
     project      = _to_dict(_get_or_404(db, pid))
-    all_projects = [_to_dict(p) for p in db.query(Project).order_by(Project.name).all()]
+    all_projects = [_to_dict_minimal(p) for p in db.query(Project).order_by(Project.name).all()]
     return templates.TemplateResponse("project.html", {
         "request":      request,
         "project":      project,
@@ -252,6 +270,8 @@ async def reupload_project(
 ):
     p = _get_or_404(db, pid)
     raw = await file.read()
+    if len(raw) > MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File troppo grande (max {MAX_UPLOAD_MB} MB).")
     try:
         content = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -281,24 +301,26 @@ async def export_project(pid: str, db: Session = Depends(get_db)):
     writer.writerow([
         "id", "name", "tables_data", "groups_data", "refs_data",
         "ungrouped_data", "saved_positions", "notes_data",
-        "markdown_notes", "column_notes_data", "enums_data", "views_data", "doc_notes_data",
+        "markdown_notes", "column_notes_data", "enums_data", "views_data",
+        "doc_notes_data", "table_notes_data",
     ])
     writer.writerow([
         p.id,
         p.name,
-        p.tables_data    or "{}",
-        p.groups_data    or "{}",
-        p.refs_data      or "[]",
-        p.ungrouped_data or "[]",
-        p.saved_positions or "{}",
-        p.notes_data     or "[]",
-        p.markdown_notes or "",
+        p.tables_data       or "{}",
+        p.groups_data       or "{}",
+        p.refs_data         or "[]",
+        p.ungrouped_data    or "[]",
+        p.saved_positions   or "{}",
+        p.notes_data        or "[]",
+        p.markdown_notes    or "",
         p.column_notes_data or "{}",
-        p.enums_data     or "[]",
-        p.views_data     or "[]",
-        p.doc_notes_data or "[]",
+        p.enums_data        or "[]",
+        p.views_data        or "[]",
+        p.doc_notes_data    or "[]",
+        p.table_notes_data  or "{}",
     ])
-    filename = p.name.replace(" ", "_") + ".dbmldoc.csv"
+    filename = p.name.replace('"', '').replace('\n', '').replace('\r', '').replace(' ', '_') + ".dbmldoc.csv"
     return StreamingResponse(
         io.BytesIO(buf.getvalue().encode("utf-8")),
         media_type="text/csv",
@@ -336,6 +358,7 @@ async def import_project(
         enums_data        = row.get("enums_data",        "[]"),
         views_data        = row.get("views_data",        "[]"),
         doc_notes_data    = row.get("doc_notes_data",    "[]"),
+        table_notes_data  = row.get("table_notes_data",  "{}"),
     )
     db.add(new_p)
     db.commit()
@@ -359,6 +382,7 @@ async def duplicate_project(pid: str, db: Session = Depends(get_db)):
         enums_data        = p.enums_data,
         views_data        = p.views_data,
         doc_notes_data    = p.doc_notes_data,
+        table_notes_data  = p.table_notes_data,
     )
     db.add(new_p)
     db.commit()

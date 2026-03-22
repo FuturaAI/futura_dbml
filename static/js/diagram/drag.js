@@ -90,7 +90,9 @@ Object.assign(Diagram.prototype, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(this.positions),
-      });
+      })
+        .then(r => { if (!r.ok) _showApiError('Errore salvataggio posizioni (' + r.status + ')'); })
+        .catch(() => _showApiError('Errore di rete (posizioni)'));
     }, 600);
   },
 
