@@ -1,13 +1,23 @@
 /**
- * diagram/minimap.js — canvas minimap + SVG/canvas size sync
+ * @file minimap.js — canvas minimap + SVG/canvas size sync
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Create the minimap widget and append it to the diagram container.
+   * @this {Diagram}
+   */
   _setupMinimap() {
     // roundRect polyfill for older browsers
     if (!CanvasRenderingContext2D.prototype.roundRect) {
-      CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+      CanvasRenderingContext2D.prototype.roundRect = function(
+        /** @type {number} */ x,
+        /** @type {number} */ y,
+        /** @type {number} */ w,
+        /** @type {number} */ h,
+        /** @type {number} */ r
+      ) {
         r = Math.min(r, w / 2, h / 2);
         this.moveTo(x + r, y);
         this.lineTo(x + w - r, y);  this.arcTo(x + w, y, x + w, y + r, r);
@@ -57,7 +67,7 @@ Object.assign(Diagram.prototype, {
     wrap.appendChild(cv);
     this.container.appendChild(wrap);
 
-    const ctx = cv.getContext('2d');
+    const ctx = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
     ctx.scale(DPR, DPR);
 
     this._mmEl       = wrap;
@@ -68,10 +78,12 @@ Object.assign(Diagram.prototype, {
     this._mmLast     = null;
     this._mmDragging = false;
 
+    /** @param {MouseEvent | Touch} e */
     const navigate = e => {
       const rect = cv.getBoundingClientRect();
-      const { mmScale, mmMinX, mmMinY } = this._mmLast || {};
-      if (!mmScale) return;
+      const last = this._mmLast;
+      if (!last) return;
+      const { mmScale, mmMinX, mmMinY } = last;
       const cx = (e.clientX - rect.left)  / mmScale + mmMinX;
       const cy = (e.clientY - rect.top)   / mmScale + mmMinY;
       const cr = this.container.getBoundingClientRect();
@@ -90,6 +102,10 @@ Object.assign(Diagram.prototype, {
     this._updateMinimap();
   },
 
+  /**
+   * Redraw the minimap canvas reflecting current positions and viewport.
+   * @this {Diagram}
+   */
   _updateMinimap() {
     if (!this._mmCtx) return;
     const tables = this.project.tables || {};
@@ -104,7 +120,7 @@ Object.assign(Diagram.prototype, {
       if (grp && this._hiddenGroups.has(grp)) continue;
       const pos = this.positions[name];
       if (!pos) continue;
-      minX = Math.min(minX, pos.x);           minY = Math.min(minY, pos.y);
+      minX = Math.min(minX, pos.x);            minY = Math.min(minY, pos.y);
       maxX = Math.max(maxX, pos.x + CARD_WIDTH); maxY = Math.max(maxY, pos.y + this._cardHeight(tbl));
     }
     if (!isFinite(minX)) { ctx.clearRect(0, 0, W, H); return; }
@@ -176,6 +192,10 @@ Object.assign(Diagram.prototype, {
     ctx.beginPath(); ctx.rect(vx, vy, vw, vh); ctx.fill(); ctx.stroke();
   },
 
+  /**
+   * Resize the SVG overlay and canvas to fit all current content.
+   * @this {Diagram}
+   */
   _updateSVGSize() {
     let maxX = 400, maxY = 400;
     const tables = this.project.tables || {};
@@ -191,8 +211,8 @@ Object.assign(Diagram.prototype, {
     }
     this.svg.style.width  = maxX + 'px';
     this.svg.style.height = maxY + 'px';
-    this.svg.setAttribute('width',  maxX);
-    this.svg.setAttribute('height', maxY);
+    this.svg.setAttribute('width',  String(maxX));
+    this.svg.setAttribute('height', String(maxY));
     this.canvas.style.width  = maxX + 'px';
     this.canvas.style.height = maxY + 'px';
   },

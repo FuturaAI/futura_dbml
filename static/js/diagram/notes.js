@@ -1,13 +1,21 @@
 /**
- * diagram/notes.js — post-it sticky notes (create, drag, color, delete, save)
+ * @file notes.js — post-it sticky notes (create, drag, colour, delete, save)
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * @this {Diagram}
+   */
   _renderNotes() {
     (this.project.notes || []).forEach(n => this._createNoteElement(n));
   },
 
+  /**
+   * Build the DOM element for a post-it note and wire up its events.
+   * @this {Diagram}
+   * @param {Note} note
+   */
   _createNoteElement(note) {
     const el = document.createElement('div');
     el.className  = 'postit';
@@ -28,16 +36,17 @@ Object.assign(Diagram.prototype, {
       <div class="postit-body" contenteditable="true" spellcheck="false">${note.text || ''}</div>
     `;
 
-    el.querySelector('.postit-delete').addEventListener('click', e => {
+    el.querySelector('.postit-delete')?.addEventListener('click', e => {
       e.stopPropagation(); this.deleteNote(note.id);
     });
-    el.querySelector('.postit-body').addEventListener('input', ev => {
-      note.text = ev.target.innerText; this._saveNotes();
+    el.querySelector('.postit-body')?.addEventListener('input', ev => {
+      note.text = /** @type {HTMLElement} */ (ev.target).innerText;
+      this._saveNotes();
     });
     el.querySelectorAll('.note-color-dot').forEach(dot => {
       dot.addEventListener('click', e => {
         e.stopPropagation();
-        this._changeNoteColor(note.id, dot.dataset.color);
+        this._changeNoteColor(note.id, /** @type {HTMLElement} */ (dot).dataset['color'] || '');
       });
     });
 
@@ -46,9 +55,15 @@ Object.assign(Diagram.prototype, {
     this._notes[note.id] = { el, data: note };
   },
 
+  /**
+   * @this {Diagram}
+   * @param {HTMLElement} el
+   * @param {Note}        note
+   */
   _makeNoteDraggable(el, note) {
-    const handle = el.querySelector('.postit-handle');
-    let dragging = false, startMX, startMY, startPX, startPY;
+    const handle = /** @type {HTMLElement} */ (el.querySelector('.postit-handle'));
+    let dragging = false;
+    let startMX = 0, startMY = 0, startPX = 0, startPY = 0;
 
     handle.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
@@ -102,9 +117,16 @@ Object.assign(Diagram.prototype, {
     }, { passive: true });
   },
 
+  /**
+   * Add a new post-it at the given canvas coordinates.
+   * @this {Diagram}
+   * @param {number} canvasX - pixel offset from container left
+   * @param {number} canvasY - pixel offset from container top
+   */
   addNote(canvasX, canvasY) {
     const x = (canvasX - this.panX) / this.scale;
     const y = (canvasY - this.panY) / this.scale;
+    /** @type {Note} */
     const note = { id: Date.now().toString(), x, y, text: '', color: NOTE_COLORS[0] };
     if (!this.project.notes) this.project.notes = [];
     this.project.notes.push(note);
@@ -113,10 +135,15 @@ Object.assign(Diagram.prototype, {
     this._saveNotes();
     setTimeout(() => {
       const el = document.getElementById(`note-${note.id}`);
-      if (el) el.querySelector('.postit-body').focus();
+      if (el) /** @type {HTMLElement} */ (el.querySelector('.postit-body'))?.focus();
     }, 50);
   },
 
+  /**
+   * Delete a post-it by id.
+   * @this {Diagram}
+   * @param {string} id
+   */
   deleteNote(id) {
     const n = this._notes[id];
     if (n) { n.el.remove(); delete this._notes[id]; }
@@ -125,6 +152,12 @@ Object.assign(Diagram.prototype, {
     this._saveNotes();
   },
 
+  /**
+   * Change the background colour of a post-it.
+   * @this {Diagram}
+   * @param {string} id
+   * @param {string} color
+   */
   _changeNoteColor(id, color) {
     const n = this._notes[id];
     if (!n) return;
@@ -134,8 +167,12 @@ Object.assign(Diagram.prototype, {
     this._saveNotes();
   },
 
+  /**
+   * Debounced POST to persist notes to the server.
+   * @this {Diagram}
+   */
   _saveNotes() {
-    clearTimeout(this._notesTimeout);
+    if (this._notesTimeout) clearTimeout(this._notesTimeout);
     this._notesTimeout = setTimeout(() => {
       fetch(`/project/${this.project.id}/notes`, {
         method: 'POST',

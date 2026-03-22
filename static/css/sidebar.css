@@ -52,8 +52,10 @@
 }
 .back-btn:hover { background: var(--sidebar-hover); color: var(--sidebar-text-bright); }
 .brand-logo { color: #3b82f6; font-size: 18px; letter-spacing: -2px; }
-.brand-name { color: var(--sidebar-text-bright); font-weight: 700; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
+.brand-name { color: var(--sidebar-text-bright); font-weight: 700; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; display: flex; align-items: center; gap: 5px; }
 .brand-name:hover { color: #fff; text-decoration: underline dotted #64748b; }
+.brand-rename-icon { flex-shrink: 0; opacity: 0; transition: opacity .15s; color: #fff; }
+.brand-name:hover .brand-rename-icon { opacity: .7; }
 .brand-name-input {
   display: none;
   flex: 1;

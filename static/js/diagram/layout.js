@@ -1,9 +1,14 @@
 /**
- * diagram/layout.js — auto-layout algorithm and DOM canvas setup
+ * @file layout.js — auto-layout algorithm and DOM canvas setup
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Compute initial (x,y) positions for every table.
+   * Uses saved positions when all tables are already placed.
+   * @this {Diagram}
+   */
   _autoLayout() {
     const tables    = this.project.tables    || {};
     const groups    = this.project.groups    || {};
@@ -14,7 +19,7 @@ Object.assign(Diagram.prototype, {
     const allSaved   = tableNames.length > 0 && tableNames.every(n => saved[n]);
     if (allSaved) { Object.assign(this.positions, saved); return; }
 
-    // Collect columns (each group = one column, ungrouped = last column)
+    /** @type {string[][]} */
     const columns = [];
     for (const names of Object.values(groups)) {
       const valid = names.filter(t => tables[t]);
@@ -23,13 +28,11 @@ Object.assign(Diagram.prototype, {
     const validUngrouped = ungrouped.filter(t => tables[t]);
     if (validUngrouped.length) columns.push(validUngrouped);
 
-    // Compute total height of each column
     const colHeights = columns.map(names =>
       names.reduce((sum, n) => sum + this._cardHeight(tables[n]) + ROW_GAP, -ROW_GAP)
     );
     const maxH = Math.max(...colHeights);
 
-    // Place each column centered vertically relative to the tallest column
     let x = START_X;
     columns.forEach((names, ci) => {
       const offsetY = Math.round((maxH - colHeights[ci]) / 2);
@@ -44,12 +47,18 @@ Object.assign(Diagram.prototype, {
     });
   },
 
+  /**
+   * Create the canvas div and SVG overlay, append to container.
+   * @this {Diagram}
+   */
   _setupDOM() {
     this.canvas = document.createElement('div');
     this.canvas.className = 'diagram-canvas';
     this.container.appendChild(this.canvas);
 
-    this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.svg = /** @type {SVGSVGElement} */ (
+      document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    );
     this.svg.setAttribute('class', 'connections-svg');
     this.svg.innerHTML = `<defs>
       <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">

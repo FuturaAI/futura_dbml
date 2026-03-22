@@ -12,7 +12,6 @@
 //   SELECT id, name, price, brand, stock, category, created_at FROM books
 // ──────────────────────────────────────────────────────────────────────────────
 
-
 // ── Famiglie prodotto ─────────────────────────────────────────────────────────
 
 Table electronics [note: 'Articoli di elettronica'] {

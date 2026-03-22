@@ -1,11 +1,16 @@
 /**
- * diagram/panzoom.js — mouse/touch pan, wheel zoom, pinch zoom, transform apply
+ * @file panzoom.js — mouse/touch pan, wheel zoom, pinch zoom, transform apply
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Attach all pan, zoom and double-click-to-add-note listeners.
+   * @this {Diagram}
+   */
   _bindPanZoom() {
-    let panning = false, px0, py0;
+    let panning = false;
+    let px0 = 0, py0 = 0;
 
     this.container.addEventListener('mousedown', e => {
       const onBg = e.target === this.container ||
@@ -29,9 +34,12 @@ Object.assign(Diagram.prototype, {
       this._applyTransform();
     });
 
-    document.addEventListener('mouseup', () => { panning = false; this.container.style.cursor = ''; });
+    document.addEventListener('mouseup', () => {
+      panning = false;
+      this.container.style.cursor = '';
+    });
 
-    // Double-click empty canvas → add note
+    // Double-click on empty canvas → add post-it
     this.container.addEventListener('dblclick', e => {
       const onBg = e.target === this.container || e.target === this.canvas || e.target === this.svg;
       if (!onBg) return;
@@ -41,7 +49,7 @@ Object.assign(Diagram.prototype, {
 
     // ── Touch pan & pinch-zoom ────────────────────────────
     let touchPanX0 = 0, touchPanY0 = 0, touchX0 = 0, touchY0 = 0;
-    let lastPinchDist = null;
+    let lastPinchDist = 0;
 
     this.container.addEventListener('touchstart', e => {
       if (e.touches.length === 1) {
@@ -85,7 +93,7 @@ Object.assign(Diagram.prototype, {
       }
     }, { passive: false });
 
-    this.container.addEventListener('touchend', () => { lastPinchDist = null; }, { passive: true });
+    this.container.addEventListener('touchend', () => { lastPinchDist = 0; }, { passive: true });
 
     this.container.addEventListener('wheel', e => {
       e.preventDefault();
@@ -101,6 +109,10 @@ Object.assign(Diagram.prototype, {
     }, { passive: false });
   },
 
+  /**
+   * Apply the current pan/scale transform to the canvas and update the zoom label.
+   * @this {Diagram}
+   */
   _applyTransform() {
     this.canvas.style.transform = `translate(${this.panX}px,${this.panY}px) scale(${this.scale})`;
     const label = document.getElementById('zoomLabel');

@@ -42,7 +42,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       </a>
       <span class="brand-logo">&#9646;&#9646;</span>
-      <span class="brand-name" id="brandName" title="Clicca per rinominare" onclick="startRename()">{{ project.name }}</span>
+      <span class="brand-name" id="brandName" title="Clicca per rinominare" onclick="startRename()">
+        {{ project.name }}
+        <svg class="brand-rename-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </span>
       <input class="brand-name-input" id="brandInput" type="text" value="{{ project.name }}"
              onblur="saveRename()" onkeydown="if(event.key==='Enter')this.blur(); if(event.key==='Escape')cancelRename();" />
       <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Nascondi sidebar">
@@ -484,12 +487,12 @@
               <option value="{{ tname }}">{{ tbl.name }}</option>
               {% endfor %}
             </select>
-            <label>Profondità</label>
+            <label>Livello join</label>
             <input class="jv-depth" type="number" id="jvDepth" value="1" min="1" max="6" onchange="renderJoinView()" />
             <button class="jv-copy-btn" id="jvCopyBtn" style="display:none" onclick="copyJoinSQL()">Copia SQL</button>
             <button class="jv-save-view-btn" id="jvSaveViewBtn" style="display:none" onclick="saveJoinView()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Crea Vista
+              <span id="jvSaveViewLabel">Crea Vista</span>
             </button>
             <div class="jv-export-wrap" id="jvExportWrap" style="display:none">
               <button class="jv-export-btn" onclick="toggleJvExportMenu(this)">
@@ -565,6 +568,7 @@
 <script>
   const PROJECT = {{ project_json | safe }};
 </script>
+<script src="/static/js/diagram/types.js"></script>
 <script src="/static/js/diagram/constants.js"></script>
 <script src="/static/js/diagram/core.js"></script>
 <script src="/static/js/diagram/layout.js"></script>
@@ -1818,13 +1822,15 @@ function _jvBFS(root, depth) {
 }
 
 // ── render ────────────────────────────────────────────────────────────────────
-function renderJoinView() {
+function renderJoinView(resetState = true) {
   const root  = document.getElementById('jvRootSelect').value;
   const depth = Math.max(1, parseInt(document.getElementById('jvDepth').value) || 1);
   const graph = document.getElementById('jvGraph');
-  _jvExcluded.clear(); // reset selezione a ogni nuovo render
-  Object.keys(_jvSelectedCols).forEach(k => delete _jvSelectedCols[k]); // reset colonne
-  _jvManualEdges = []; // reset join manuali
+  if (resetState) {
+    _jvExcluded.clear();
+    Object.keys(_jvSelectedCols).forEach(k => delete _jvSelectedCols[k]);
+    _jvManualEdges = [];
+  }
 
   if (!root) {
     graph.innerHTML = '<div class="jv-empty">Seleziona una tabella di partenza per esplorare i join</div>';
@@ -1836,13 +1842,6 @@ function renderJoinView() {
   const tables = PROJECT.tables || {};
   const { visited, edges } = _jvBFS(root, depth);
 
-  if (visited.size <= 1) {
-    graph.innerHTML = `<div class="jv-empty">La tabella "<strong>${tables[root]?.name || root}</strong>" non ha relazioni entro profondità ${depth}</div>`;
-    document.getElementById('jvSQLWrap').style.display = 'none';
-    document.getElementById('jvCopyBtn').style.display = 'none';
-    return;
-  }
-
   // join-column highlights: "tbl::col" → colorHex
   const joinColColor = {};
   edges.forEach((e) => {
@@ -1852,22 +1851,39 @@ function renderJoinView() {
     joinColColor[e.to   + '::' + e.toCol]   = c;
   });
 
+  // Add manual edge targets to visited and joinColColor
+  for (const e of _jvManualEdges) {
+    const fromHop = visited.get(e.from) ?? 0;
+    if (!visited.has(e.to) && tables[e.to]) {
+      visited.set(e.to, fromHop + 1);
+    }
+    const c = e.color || _jvGroupColor(e.to);
+    joinColColor[e.from + '::' + e.fromCol] = c;
+    joinColColor[e.to   + '::' + e.toCol]   = c;
+  }
+
   // group tables by hop
   const byHop = new Map();
   for (const [tbl, hop] of visited) {
     (byHop.get(hop) || byHop.set(hop, []).get(hop)).push(tbl);
   }
-  const maxHop = Math.max(...visited.values());
+  const maxHop = visited.size > 1 ? Math.max(...visited.values()) : 0;
 
+  // Render all hops up to depth (even empty ones), so the user can always add manual joins
   let html = '<div class="jv-row"><div class="jv-hops">';
-  for (let h = 0; h <= maxHop; h++) {
+  for (let h = 0; h <= Math.max(maxHop, depth); h++) {
+    const tablesAtHop = byHop.get(h) || [];
+    // Skip trailing empty hop columns beyond maxHop (they'd just be blank)
+    if (h > maxHop && h > 0 && tablesAtHop.length === 0) break;
+
     html += '<div class="jv-hop">';
-    for (const tbl of (byHop.get(h) || [])) {
+    for (const tbl of tablesAtHop) {
       html += _jvCard(tbl, tables[tbl], joinColColor, h === 0);
     }
     html += '</div>';
 
-    if (h < maxHop) {
+    // Show a connector for every level up to depth, even if no BFS edges exist there
+    if (h < depth) {
       const hopEdges = edges.filter(e =>
         (visited.get(e.from) === h && visited.get(e.to) === h + 1) ||
         (visited.get(e.to)   === h && visited.get(e.from) === h + 1)
@@ -1891,6 +1907,28 @@ function renderJoinView() {
             </select>
           </div>
           <span class="jv-conn-cond" style="color:${e.color};border-color:${e.color}">${fromName}.<strong>${e.fromCol}</strong> = ${toName}.<strong>${e.toCol}</strong></span>
+        </div>`;
+      }
+      // Manual edges whose from-table is at this hop level
+      const manualAtHop = _jvManualEdges.filter(e => (visited.get(e.from) ?? 0) === h);
+      for (const e of manualAtHop) {
+        const jt       = _jvGetJoinType(e.from, e.to);
+        const fromName = tables[e.from]?.name || e.from.split('.').pop();
+        const toName   = tables[e.to]?.name   || e.to.split('.').pop();
+        html += `<div class="jv-conn-badge jv-conn-badge--manual" data-from="${e.from}" data-to="${e.to}">
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="jv-incl-btn" title="Rimuovi join manuale"
+              onclick="_jvRemoveManual('${e.from}','${e.to}',this.closest('.jv-conn-badge'))"></button>
+            <select class="jv-join-select" style="color:${e.color};border-color:${e.color}"
+              onchange="_jvSetJoinType('${e.from}','${e.to}',this.value)"
+              data-from="${e.from}" data-to="${e.to}">
+              <option${jt==='INNER JOIN'?' selected':''}>INNER JOIN</option>
+              <option${jt==='LEFT JOIN' ?' selected':''}>LEFT JOIN</option>
+              <option${jt==='RIGHT JOIN'?' selected':''}>RIGHT JOIN</option>
+              <option${jt==='FULL JOIN' ?' selected':''}>FULL JOIN</option>
+            </select>
+          </div>
+          <span class="jv-conn-cond jv-conn-cond--manual" style="color:${e.color};border-color:${e.color}">${fromName}.<strong>${e.fromCol}</strong> = ${toName}.<strong>${e.toCol}</strong></span>
         </div>`;
       }
       html += `<button class="jv-add-join-btn" onclick="_jvShowAddJoin(this)">+ Aggiungi join</button>`;
@@ -2187,32 +2225,54 @@ function _jvDownload(filename, text) {
 //  SAVED VIEWS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function saveJoinView() {
-  const name = prompt('Nome della vista:', 'Vista ' + (PROJECT.views?.length + 1 || 1));
-  if (!name) return;
+let _jvCurrentViewId = null;
 
+function _setCurrentView(id) {
+  _jvCurrentViewId = id;
+  const label = document.getElementById('jvSaveViewLabel');
+  if (label) label.textContent = id ? 'Aggiorna Vista' : 'Crea Vista';
+}
+
+async function saveJoinView() {
   const graph = document.getElementById('jvGraph');
   const root  = graph.dataset.root;
   const depth = parseInt(document.getElementById('jvDepth').value) || 1;
 
   const payload = {
-    name,
     root,
     depth,
     joinTypes:    { ..._jvJoinTypes },
     excluded:     [..._jvExcluded],
     selectedCols: { ..._jvSelectedCols },
+    manualEdges:  _jvManualEdges.map(e => ({ ...e })),
   };
 
-  const res = await fetch(`/project/{{ project.id }}/views`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) return;
-  const data = await res.json();
-  PROJECT.views = PROJECT.views || [];
-  PROJECT.views.push({ ...payload, id: data.id });
+  if (_jvCurrentViewId) {
+    // Aggiorna vista esistente
+    const res = await fetch(`/project/{{ project.id }}/views/${_jvCurrentViewId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return;
+    const idx = (PROJECT.views || []).findIndex(v => v.id === _jvCurrentViewId);
+    if (idx !== -1) Object.assign(PROJECT.views[idx], payload);
+  } else {
+    // Nuova vista
+    const name = prompt('Nome della vista:', 'Vista ' + ((PROJECT.views?.length || 0) + 1));
+    if (!name) return;
+    const res = await fetch(`/project/{{ project.id }}/views`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, name }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    PROJECT.views = PROJECT.views || [];
+    PROJECT.views.push({ ...payload, name, id: data.id });
+    _setCurrentView(data.id);
+  }
+
   _updateViewsBadge();
   renderViewsList();
 }
@@ -2220,24 +2280,41 @@ async function saveJoinView() {
 async function deleteView(id) {
   await fetch(`/project/{{ project.id }}/views/${id}`, { method: 'DELETE' });
   PROJECT.views = (PROJECT.views || []).filter(v => v.id !== id);
+  if (_jvCurrentViewId === id) _setCurrentView(null);
   _updateViewsBadge();
   renderViewsList();
 }
 
+async function renameView(id, newName) {
+  if (!newName.trim()) return;
+  const res = await fetch(`/project/{{ project.id }}/views/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName.trim() }),
+  });
+  if (!res.ok) return;
+  const v = (PROJECT.views || []).find(v => v.id === id);
+  if (v) v.name = newName.trim();
+}
+
 function loadView(v) {
-  // Restore join state
+  // Restore all join state before rendering (renderJoinView won't reset it)
   Object.keys(_jvJoinTypes).forEach(k => delete _jvJoinTypes[k]);
   Object.assign(_jvJoinTypes, v.joinTypes || {});
   _jvExcluded.clear();
   (v.excluded || []).forEach(k => _jvExcluded.add(k));
   Object.keys(_jvSelectedCols).forEach(k => delete _jvSelectedCols[k]);
   Object.assign(_jvSelectedCols, v.selectedCols || {});
+  _jvManualEdges = (v.manualEdges || []).map(e => ({ ...e }));
 
-  // Set root + depth, switch to JOIN tab and render
+  // Track loaded view → button diventa "Aggiorna"
+  _setCurrentView(v.id);
+
+  // Set root + depth, switch to JOIN tab and render (resetState=false)
   document.getElementById('jvRootSelect').value = v.root;
   document.getElementById('jvDepth').value = v.depth;
   switchJvTab('join', document.getElementById('jvSubJoin'));
-  renderJoinView();
+  renderJoinView(false);
 }
 
 function _updateViewsBadge() {
@@ -2263,13 +2340,21 @@ function renderViewsList() {
   for (const v of views) {
     const { visited } = _jvBFS_static(v.root, v.depth, v.excluded || []);
     const color = _jvGroupColor(v.root);
-    html += `<div class="jv-view-card">
+    const isActive = _jvCurrentViewId === v.id;
+    html += `<div class="jv-view-card${isActive ? ' jv-view-active' : ''}">
       <div class="jv-view-head" style="background:${color}">
-        <span class="jv-view-name">${v.name}</span>
+        <span class="jv-view-name-wrap">
+          <span class="jv-view-name" contenteditable="true" spellcheck="false"
+            data-id="${v.id}"
+            onblur="renameView('${v.id}', this.innerText)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+          >${v.name}</span>
+          <svg class="jv-rename-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </span>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="jv-view-btn jv-view-load" onclick="loadView(${JSON.stringify(v).replace(/"/g,'&quot;')})">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 12 19 12"/><polyline points="13 6 19 12 13 18"/></svg>
-            Apri
+            ${isActive ? 'Attiva' : 'Apri'}
           </button>
           <button class="jv-view-btn jv-view-del" onclick="deleteView('${v.id}')">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>

@@ -1,11 +1,19 @@
 /**
- * diagram/drag.js — individual table card drag + position persistence
+ * @file drag.js — individual table card drag + position persistence
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Attach mouse/touch drag listeners to a table card.
+   * @this {Diagram}
+   * @param {HTMLElement} card
+   * @param {string}      name  - table key
+   */
   _makeDraggable(card, name) {
-    let dragging = false, startMX, startMY, startPX, startPY, hasMoved;
+    let dragging = false;
+    let startMX = 0, startMY = 0, startPX = 0, startPY = 0;
+    let hasMoved = false;
 
     card.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
@@ -38,7 +46,6 @@ Object.assign(Diagram.prototype, {
       else          this.focusTable(name);
     });
 
-    // Touch drag
     card.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) return;
       e.stopPropagation();
@@ -72,8 +79,12 @@ Object.assign(Diagram.prototype, {
     }, { passive: true });
   },
 
+  /**
+   * Debounced POST to persist current positions to the server.
+   * @this {Diagram}
+   */
   _savePositions() {
-    clearTimeout(this._saveTimeout);
+    if (this._saveTimeout) clearTimeout(this._saveTimeout);
     this._saveTimeout = setTimeout(() => {
       fetch(`/project/${this.project.id}/positions`, {
         method: 'POST',

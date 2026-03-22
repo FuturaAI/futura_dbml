@@ -1,9 +1,14 @@
 /**
- * diagram/api.js — public API methods + bootstrap
+ * @file api.js — public API methods + bootstrap
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Select and highlight a specific FK reference.
+   * @this {Diagram}
+   * @param {Ref} ref
+   */
   focusRef(ref) {
     this.activeTable = null;
     this._activeRef  = ref;
@@ -30,6 +35,11 @@ Object.assign(Diagram.prototype, {
     this.container.dispatchEvent(new CustomEvent('refSelected', { detail: ref, bubbles: true }));
   },
 
+  /**
+   * Select a table, highlight its connections, and pan to centre it.
+   * @this {Diagram}
+   * @param {string} name
+   */
   focusTable(name) {
     this.activeTable = name;
     this._activeRef  = null;
@@ -49,10 +59,17 @@ Object.assign(Diagram.prototype, {
     }
   },
 
+  /** @this {Diagram} */
   zoomIn()    { this.scale = Math.min(3,    this.scale * 1.15); this._applyTransform(); },
+  /** @this {Diagram} */
   zoomOut()   { this.scale = Math.max(0.15, this.scale / 1.15); this._applyTransform(); },
+  /** @this {Diagram} */
   resetView() { this.scale = 0.85; this.panX = 0; this.panY = 0; this._applyTransform(); },
 
+  /**
+   * Fit all visible tables into the viewport.
+   * @this {Diagram}
+   */
   fitToScreen() {
     const tables = this.project.tables || {};
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -77,6 +94,10 @@ Object.assign(Diagram.prototype, {
     this._applyTransform();
   },
 
+  /**
+   * Reset all table positions to the auto-layout grid.
+   * @this {Diagram}
+   */
   resetLayout() {
     const savedBackup = this.project.saved_positions;
     this.project.saved_positions = {};
@@ -98,6 +119,7 @@ Object.assign(Diagram.prototype, {
 
 // ── Bootstrap ─────────────────────────────────────────────
 
+/** @type {Diagram | null} */
 let diagram = null;
 
 document.addEventListener('DOMContentLoaded', () => {

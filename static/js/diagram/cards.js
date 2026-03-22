@@ -1,9 +1,13 @@
 /**
- * diagram/cards.js — table card rendering
+ * @file cards.js — table card rendering
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Create one DOM card per table and append it to the canvas.
+   * @this {Diagram}
+   */
   _renderCards() {
     for (const [name, tbl] of Object.entries(this.project.tables || {})) {
       const pos = this.positions[name];
@@ -28,7 +32,7 @@ Object.assign(Diagram.prototype, {
         </div>
         <button class="card-eye-btn" title="Mostra/nascondi">${SVG_EYE_OPEN}</button>
       `;
-      header.querySelector('.card-eye-btn').addEventListener('click', e => {
+      header.querySelector('.card-eye-btn')?.addEventListener('click', e => {
         e.stopPropagation();
         this.toggleTableVisibility(name);
       });

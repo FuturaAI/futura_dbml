@@ -213,6 +213,20 @@ async def save_view(pid: str, request: Request, db: Session = Depends(get_db)):
     return {"ok": True, "id": view_id}
 
 
+@app.put("/project/{pid}/views/{vid}")
+async def update_view(pid: str, vid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    body = await request.json()
+    views = json.loads(p.views_data or "[]")
+    for v in views:
+        if v.get("id") == vid:
+            v.update({k: val for k, val in body.items() if k != "id"})
+            break
+    p.views_data = json.dumps(views)
+    db.commit()
+    return {"ok": True}
+
+
 @app.delete("/project/{pid}/views/{vid}")
 async def delete_view(pid: str, vid: str, db: Session = Depends(get_db)):
     p = _get_or_404(db, pid)

@@ -137,7 +137,13 @@
                      width:320px; box-shadow:0 2px 8px rgba(0,0,0,.07); }
 .jv-view-head      { display:flex; align-items:center; justify-content:space-between;
                      padding:9px 12px; color:#fff; }
-.jv-view-name      { font-weight:700; font-size:13px; }
+.jv-view-name-wrap { display:flex; align-items:center; gap:5px; }
+.jv-view-name      { font-weight:700; font-size:13px; cursor:text; border-radius:4px; padding:1px 4px;
+                     outline:none; min-width:60px; }
+.jv-view-name:focus{ background:rgba(255,255,255,.2); }
+.jv-rename-icon    { opacity:0; transition:opacity .15s; flex-shrink:0; pointer-events:none; }
+.jv-view-name-wrap:hover .jv-rename-icon { opacity:.75; }
+.jv-view-active    { outline:2px solid #3b82f6; outline-offset:2px; }
 .jv-view-btn       { display:flex; align-items:center; gap:4px; border:none; border-radius:5px;
                      padding:3px 8px; cursor:pointer; font-size:11px; font-weight:600; }
 .jv-view-load      { background:rgba(255,255,255,.25); color:#fff; }

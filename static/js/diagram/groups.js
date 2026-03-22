@@ -1,9 +1,13 @@
 /**
- * diagram/groups.js — group containers, group drag, visibility toggling
+ * @file groups.js — group containers, group drag, visibility toggling
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * Build and insert one container div per group behind the table cards.
+   * @this {Diagram}
+   */
   _renderGroupContainers() {
     const groups = this.project.groups || {};
     const tables = this.project.tables || {};
@@ -28,7 +32,7 @@ Object.assign(Diagram.prototype, {
           ${SVG_EYE_OPEN}
         </button>
       `;
-      label.querySelector('.group-eye-btn').addEventListener('click', e => {
+      label.querySelector('.group-eye-btn')?.addEventListener('click', e => {
         e.stopPropagation();
         this.toggleGroupVisibility(groupName);
       });
@@ -42,6 +46,10 @@ Object.assign(Diagram.prototype, {
     this._updateGroupContainers();
   },
 
+  /**
+   * Recompute the bounding box of each group container from current positions.
+   * @this {Diagram}
+   */
   _updateGroupContainers() {
     const tables = this.project.tables || {};
     const groups = this.project.groups || {};
@@ -68,13 +76,23 @@ Object.assign(Diagram.prototype, {
     }
   },
 
+  /**
+   * Attach mouse/touch drag listeners to a group container element.
+   * @this {Diagram}
+   * @param {HTMLElement} el
+   * @param {string}      groupName
+   * @param {string[]}    tableNames
+   */
   _makeGroupDraggable(el, groupName, tableNames) {
-    let dragging = false, startMX, startMY;
+    let dragging = false;
+    let startMX = 0, startMY = 0;
+    /** @type {Record<string, Position>} */
     let startPos = {};
 
     el.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
-      if (e.target.closest('.table-card') || e.target.closest('.postit')) return;
+      if (/** @type {Element} */ (e.target).closest('.table-card') ||
+          /** @type {Element} */ (e.target).closest('.postit')) return;
       e.stopPropagation();
       e.preventDefault();
       dragging = true;
@@ -110,10 +128,10 @@ Object.assign(Diagram.prototype, {
       this._savePositions();
     });
 
-    // Touch drag for group
     el.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) return;
-      if (e.target.closest('.table-card') || e.target.closest('.postit')) return;
+      if (/** @type {Element} */ (e.target).closest('.table-card') ||
+          /** @type {Element} */ (e.target).closest('.postit')) return;
       e.stopPropagation();
       const t = e.touches[0];
       dragging = true; startMX = t.clientX; startMY = t.clientY;
@@ -147,24 +165,34 @@ Object.assign(Diagram.prototype, {
 
   // ── visibility persistence ───────────────────────────────
 
+  /**
+   * @this {Diagram}
+   */
   _persistVisibility() {
     const pid = this.project.id;
     localStorage.setItem(`dbml_hg_${pid}`, JSON.stringify([...this._hiddenGroups]));
     localStorage.setItem(`dbml_ht_${pid}`, JSON.stringify([...this._hiddenTables]));
   },
 
+  /**
+   * @this {Diagram}
+   */
   _restoreVisibility() {
     const pid = this.project.id;
     try {
       const hg = JSON.parse(localStorage.getItem(`dbml_hg_${pid}`) || '[]');
       const ht = JSON.parse(localStorage.getItem(`dbml_ht_${pid}`) || '[]');
-      hg.forEach(g => this.toggleGroupVisibility(g));
-      ht.forEach(t => this.toggleTableVisibility(t));
+      /** @type {string[]} */ (hg).forEach(g => this.toggleGroupVisibility(g));
+      /** @type {string[]} */ (ht).forEach(t => this.toggleTableVisibility(t));
     } catch {}
   },
 
   // ── eye toggles ──────────────────────────────────────────
 
+  /**
+   * @this {Diagram}
+   * @param {string} groupName
+   */
   toggleGroupVisibility(groupName) {
     const hidden = this._hiddenGroups.has(groupName);
     hidden ? this._hiddenGroups.delete(groupName) : this._hiddenGroups.add(groupName);
@@ -194,6 +222,10 @@ Object.assign(Diagram.prototype, {
     this._updateMinimap();
   },
 
+  /**
+   * @this {Diagram}
+   * @param {string} name
+   */
   toggleTableVisibility(name) {
     const hidden = this._hiddenTables.has(name);
     hidden ? this._hiddenTables.delete(name) : this._hiddenTables.add(name);
@@ -203,7 +235,7 @@ Object.assign(Diagram.prototype, {
     if (card) {
       card.classList.toggle('table-hidden', nowHidden);
       const body = card.querySelector('.card-body');
-      if (body) body.style.display = nowHidden ? 'none' : '';
+      if (body) /** @type {HTMLElement} */ (body).style.display = nowHidden ? 'none' : '';
       const btn = card.querySelector('.card-eye-btn');
       if (btn) btn.innerHTML = nowHidden ? SVG_EYE_CLOSED : SVG_EYE_OPEN;
     }

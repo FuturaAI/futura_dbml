@@ -1,29 +1,73 @@
 /**
- * diagram/core.js — Diagram class skeleton, constructor, color helpers
+ * @file core.js — Diagram class skeleton, constructor, colour helpers
  */
 
 class Diagram {
+  /**
+   * @param {Project} project
+   * @param {string}  containerId
+   */
   constructor(project, containerId) {
-    this.project     = project;
-    this.container   = document.getElementById(containerId);
-    this.scale       = 0.85;
-    this.panX        = 0;
-    this.panY        = 0;
-    this.positions   = {};
-    this.cards       = {};
+    /** @type {Project} */
+    this.project = project;
+    /** @type {HTMLElement} */
+    this.container = /** @type {HTMLElement} */ (document.getElementById(containerId));
+    /** @type {number} */
+    this.scale = 0.85;
+    /** @type {number} */
+    this.panX = 0;
+    /** @type {number} */
+    this.panY = 0;
+    /** @type {Record<string, Position>} */
+    this.positions = {};
+    /** @type {Record<string, HTMLElement>} */
+    this.cards = {};
+    /** @type {string | null} */
     this.activeTable = null;
-    this._notes           = {};
+    /** @type {Record<string, NoteEntry>} */
+    this._notes = {};
+    /** @type {Record<string, HTMLElement>} */
     this._groupContainers = {};
-    this._hiddenGroups    = new Set();
-    this._hiddenTables    = new Set();
-    this._saveTimeout     = null;
-    this._notesTimeout    = null;
-    this._history         = [];
-    this._historyIndex    = -1;
+    /** @type {Set<string>} */
+    this._hiddenGroups = new Set();
+    /** @type {Set<string>} */
+    this._hiddenTables = new Set();
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    this._saveTimeout = null;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    this._notesTimeout = null;
+    /** @type {HistoryEntry[]} */
+    this._history = [];
+    /** @type {number} */
+    this._historyIndex = -1;
+    /** @type {Ref | null} */
+    this._activeRef = null;
+    /** @type {Record<string, string>} */
+    this._groupColorMap = this._buildColorMap();
+    /** @type {Record<string, string>} */
+    this._tableGroupMap = this._buildTableGroupMap();
 
-    this._activeRef      = null;
-    this._groupColorMap  = this._buildColorMap();
-    this._tableGroupMap  = this._buildTableGroupMap();
+    // Minimap state (set by minimap.js)
+    /** @type {HTMLDivElement | null} */
+    this._mmEl = null;
+    /** @type {HTMLCanvasElement | null} */
+    this._mmCv = null;
+    /** @type {CanvasRenderingContext2D | null} */
+    this._mmCtx = null;
+    /** @type {number} */
+    this._mmW = 0;
+    /** @type {number} */
+    this._mmH = 0;
+    /** @type {MinimapState | null} */
+    this._mmLast = null;
+    /** @type {boolean} */
+    this._mmDragging = false;
+
+    // Canvas & SVG (set by layout.js / _setupDOM)
+    /** @type {HTMLDivElement} */
+    this.canvas = /** @type {any} */ (null);
+    /** @type {SVGSVGElement} */
+    this.svg = /** @type {any} */ (null);
 
     this._setupDOM();
     this._autoLayout();
@@ -39,13 +83,21 @@ class Diagram {
     this._bindUndoRedo();
   }
 
-  // ── color helpers ────────────────────────────────────────
+  // ── colour helpers ───────────────────────────────────────
 
+  /**
+   * @param {Table} table
+   * @returns {number}
+   */
   _cardHeight(table) {
     return HEADER_H + table.columns.length * COL_ROW_H + CARD_PAD_B;
   }
 
+  /**
+   * @returns {Record<string, string>}
+   */
   _buildColorMap() {
+    /** @type {Record<string, string>} */
     const map = {};
     Object.keys(this.project.groups || {}).forEach((name, i) => {
       map[name] = GROUP_COLORS[i % GROUP_COLORS.length];
@@ -54,7 +106,11 @@ class Diagram {
     return map;
   }
 
+  /**
+   * @returns {Record<string, string>}
+   */
   _buildTableGroupMap() {
+    /** @type {Record<string, string>} */
     const map = {};
     for (const [g, tables] of Object.entries(this.project.groups || {}))
       tables.forEach(t => { map[t] = g; });
@@ -62,6 +118,10 @@ class Diagram {
     return map;
   }
 
+  /**
+   * @param {string} tableName
+   * @returns {string}
+   */
   _color(tableName) {
     const g = this._tableGroupMap[tableName] || '__ungrouped__';
     return this._groupColorMap[g] || '#64748b';

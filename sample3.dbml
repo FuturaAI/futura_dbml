@@ -10,7 +10,6 @@
 //     JOIN di project_staff + all_staff + projects + departments
 // ──────────────────────────────────────────────────────────────────────────────
 
-
 // ── Tabella di supporto: reparti ──────────────────────────────────────────────
 
 Table hr.departments [note: 'Reparti aziendali'] {

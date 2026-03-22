@@ -1,9 +1,14 @@
 /**
- * diagram/connections.js — SVG bezier connections, highlight, clear
+ * @file connections.js — SVG bezier connections, highlight, clear
  */
 
 Object.assign(Diagram.prototype, {
 
+  /**
+   * (Re)draw all FK connection paths on the SVG overlay.
+   * @this {Diagram}
+   * @param {string | null} [highlightTable]
+   */
   _renderConnections(highlightTable = null) {
     this.svg.querySelectorAll('path.conn, path.conn-hit, text.conn-label').forEach(p => p.remove());
     const tables    = this.project.tables || {};
@@ -37,17 +42,17 @@ Object.assign(Diagram.prototype, {
       const cp2x = x2 + (fromPos.x <= toPos.x ? -cpDx :  cpDx);
       const d    = `M ${x1} ${y1} C ${cp1x} ${y1} ${cp2x} ${y2} ${x2} ${y2}`;
 
-      const isSel = activeRef &&
+      const isSel = activeRef != null &&
         activeRef.from_table === ref.from_table && activeRef.from_col === ref.from_col &&
         activeRef.to_table   === ref.to_table   && activeRef.to_col   === ref.to_col;
-      const isHi = highlightTable &&
+      const isHi = highlightTable != null &&
         (ref.from_table === highlightTable || ref.to_table === highlightTable);
 
       let stroke = '#cbd5e1', strokeW = '1.5', marker = 'url(#arr)';
       if (isSel)      { stroke = '#818cf8'; strokeW = '2.5'; marker = 'url(#arr-sel)'; }
       else if (isHi)  { stroke = '#3b82f6'; strokeW = '2';   marker = 'url(#arr-hi)';  }
 
-      const dimmed = (highlightTable && !isHi) || (activeRef && !isSel);
+      const dimmed = (highlightTable != null && !isHi) || (activeRef != null && !isSel);
 
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('class', 'conn');
@@ -62,8 +67,8 @@ Object.assign(Diagram.prototype, {
       const labelColor = isSel ? '#818cf8' : isHi ? '#3b82f6' : '#94a3b8';
       const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       lbl.setAttribute('class', 'conn-label');
-      lbl.setAttribute('x', (x1 + x2) / 2);
-      lbl.setAttribute('y', (y1 + y2) / 2 - 5);
+      lbl.setAttribute('x', String((x1 + x2) / 2));
+      lbl.setAttribute('y', String((y1 + y2) / 2 - 5));
       lbl.setAttribute('text-anchor', 'middle');
       lbl.setAttribute('font-family', 'ui-monospace, monospace, system-ui');
       lbl.setAttribute('font-size', '10');
@@ -95,25 +100,32 @@ Object.assign(Diagram.prototype, {
           const tn = (this.project.tables[ref.to_table]   || {}).name || ref.to_table;
           tipTarget.textContent = `${fn}.${ref.from_col}  ·  ${tn}.${ref.to_col}`;
         }
-        tip.style.display = 'block';
-        tip.style.left = (e.clientX + 18) + 'px';
-        tip.style.top  = (e.clientY - 16) + 'px';
+        /** @type {HTMLElement} */ (tip).style.display = 'block';
+        /** @type {HTMLElement} */ (tip).style.left = (e.clientX + 18) + 'px';
+        /** @type {HTMLElement} */ (tip).style.top  = (e.clientY - 16) + 'px';
       });
       hit.addEventListener('mousemove', e => {
         if (!tip) return;
-        tip.style.left = (e.clientX + 18) + 'px';
-        tip.style.top  = (e.clientY - 16) + 'px';
+        /** @type {HTMLElement} */ (tip).style.left = (e.clientX + 18) + 'px';
+        /** @type {HTMLElement} */ (tip).style.top  = (e.clientY - 16) + 'px';
       });
-      hit.addEventListener('mouseleave', () => { if (tip) tip.style.display = 'none'; });
+      hit.addEventListener('mouseleave', () => {
+        if (tip) /** @type {HTMLElement} */ (tip).style.display = 'none';
+      });
       hit.addEventListener('click', e => {
         e.stopPropagation();
-        if (tip) tip.style.display = 'none';
+        if (tip) /** @type {HTMLElement} */ (tip).style.display = 'none';
         this.focusRef(ref);
       });
       this.svg.appendChild(hit);
     });
   },
 
+  /**
+   * Highlight connections touching a specific table; dim the rest.
+   * @this {Diagram}
+   * @param {string} tableName
+   */
   _highlightConnections(tableName) {
     this._renderConnections(tableName);
     const refs = this.project.refs || [];
@@ -127,6 +139,10 @@ Object.assign(Diagram.prototype, {
     });
   },
 
+  /**
+   * Remove all highlights and restore normal opacity.
+   * @this {Diagram}
+   */
   _clearHighlight() {
     this._activeRef = null;
     Object.values(this.cards).forEach(c => { c.style.opacity = '1'; c.classList.remove('highlighted'); });
