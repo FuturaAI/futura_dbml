@@ -144,8 +144,28 @@
 
     </nav>
 
-    <!-- Delete project -->
+    <!-- Footer actions -->
     <div class="sidebar-footer">
+      <a href="/project/{{ project.id }}/export" class="btn-sidebar-action" style="text-decoration:none; margin-bottom:6px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Esporta backup (CSV)
+      </a>
+      <form action="/project/{{ project.id }}/reupload" method="post"
+            enctype="multipart/form-data" id="reuploadForm">
+        <input type="file" id="reuploadFile" name="file" accept=".dbml,.txt"
+               style="display:none" onchange="this.form.submit()" />
+        <button type="button" class="btn-sidebar-action"
+                onclick="document.getElementById('reuploadFile').click()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Aggiorna DBML
+        </button>
+      </form>
+      <form action="/project/{{ project.id }}/duplicate" method="post">
+        <button type="submit" class="btn-sidebar-action">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Duplica
+        </button>
+      </form>
       <form action="/project/{{ project.id }}/delete" method="post"
             onsubmit="return confirm('Eliminare il progetto?')">
         <button type="submit" class="btn-delete">Elimina progetto</button>
@@ -207,13 +227,33 @@
             </button>
           </div>
         </div>
+        <div class="canvas-search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="canvas-search-input" id="canvasSearch" placeholder="Cerca tabella…" autocomplete="off" />
+        </div>
+      </div>
+      <div class="toolbar-actions" id="docsActions" style="display:none">
+        <button class="btn-toolbar-action" onclick="expandAllDocs()" title="Espandi tutto">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+          Espandi tutto
+        </button>
+        <button class="btn-toolbar-action" onclick="collapseAllDocs()" title="Comprimi tutto">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 11 12 6 17 11"/><polyline points="7 18 12 13 17 18"/></svg>
+          Comprimi tutto
+        </button>
       </div>
       <div class="toolbar-zoom" id="zoomControls">
         <button class="zoom-btn" onclick="diagram && diagram.zoomOut()" title="Zoom out">&#8722;</button>
         <span class="zoom-label" id="zoomLabel">80%</span>
         <button class="zoom-btn" onclick="diagram && diagram.zoomIn()" title="Zoom in">&#43;</button>
-        <button class="zoom-btn" onclick="diagram && diagram.resetView()" title="Reset view" style="margin-left:4px">
+        <button class="zoom-btn" onclick="diagram && diagram.resetView()" title="Reset vista">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+        <button class="zoom-btn" onclick="diagram && diagram.fitToScreen()" title="Adatta allo schermo" style="margin-left:2px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <button class="zoom-btn" onclick="diagram && diagram.resetLayout()" title="Reset layout" style="margin-left:2px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         </button>
       </div>
     </div>
@@ -267,15 +307,23 @@
         {% for group_name, table_names in project.groups.items() %}
         {% set ci = loop.index0 % 8 %}
         <section class="docs-group">
-          <div class="docs-group-title" style="border-left-color: {{ colors[ci] }}">{{ group_name }}</div>
+          <div class="docs-group-title docs-group-toggle" style="border-left-color: {{ colors[ci] }}" onclick="toggleDocsGroup(this)">
+            {{ group_name }}
+            <svg class="docs-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="docs-group-body">
           {% for tname in table_names %}
           {% if tname in project.tables %}
           {% set tbl = project.tables[tname] %}
           <div class="docs-table-card" id="docs-{{ tname | replace('.', '-') }}">
-            <div class="docs-table-header" style="border-top-color: {{ colors[ci] }}">
-              <h3>{{ tbl.full_name }}</h3>
+            <div class="docs-table-header docs-table-toggle" style="border-top-color: {{ colors[ci] }}" onclick="toggleDocsTable(this)">
+              <div class="docs-table-title-row">
+                <h3>{{ tbl.name }}</h3>
+                <svg class="docs-chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
               {% if tbl.note %}<p class="docs-table-note">{{ tbl.note }}</p>{% endif %}
             </div>
+            <div class="docs-table-body">
             <table class="docs-col-table">
               <thead>
                 <tr>
@@ -300,28 +348,38 @@
                     {% if col.unique %}<span class="badge-uq">UQ</span>{% endif %}
                   </td>
                   <td class="col-default">{{ col.default or '' }}</td>
-                  <td class="col-note">{{ col.note or '' }}</td>
+                  <td class="col-note" data-table="{{ tname }}" data-col="{{ col.name }}" contenteditable="true" spellcheck="false">{{ col.note or '' }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
+            </div>
           </div>
           {% endif %}
           {% endfor %}
+          </div>
         </section>
         {% endfor %}
 
         {% if project.ungrouped %}
         <section class="docs-group">
-          <div class="docs-group-title" style="border-left-color:#64748b">(no group)</div>
+          <div class="docs-group-title docs-group-toggle" style="border-left-color:#64748b" onclick="toggleDocsGroup(this)">
+            (no group)
+            <svg class="docs-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="docs-group-body">
           {% for tname in project.ungrouped %}
           {% if tname in project.tables %}
           {% set tbl = project.tables[tname] %}
           <div class="docs-table-card" id="docs-{{ tname | replace('.', '-') }}">
-            <div class="docs-table-header" style="border-top-color:#64748b">
-              <h3>{{ tbl.full_name }}</h3>
+            <div class="docs-table-header docs-table-toggle" style="border-top-color:#64748b" onclick="toggleDocsTable(this)">
+              <div class="docs-table-title-row">
+                <h3>{{ tbl.name }}</h3>
+                <svg class="docs-chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
               {% if tbl.note %}<p class="docs-table-note">{{ tbl.note }}</p>{% endif %}
             </div>
+            <div class="docs-table-body">
             <table class="docs-col-table">
               <thead>
                 <tr>
@@ -342,14 +400,16 @@
                     {% if col.unique %}<span class="badge-uq">UQ</span>{% endif %}
                   </td>
                   <td class="col-default">{{ col.default or '' }}</td>
-                  <td class="col-note">{{ col.note or '' }}</td>
+                  <td class="col-note" data-table="{{ tname }}" data-col="{{ col.name }}" contenteditable="true" spellcheck="false">{{ col.note or '' }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
+            </div>
           </div>
           {% endif %}
           {% endfor %}
+          </div>
         </section>
         {% endif %}
 
@@ -490,6 +550,101 @@
 
   // Legacy stub (called by switchTab)
   function initMarkdownEditor() {}
+
+  // ── Canvas search ─────────────────────────────────────────────────────────
+  function _clearCanvasSearch() {
+    if (!diagram) return;
+    Object.values(diagram.cards).forEach(c => { c.style.opacity = ''; });
+  }
+
+  let _csTimer = null;
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('canvasSearch').addEventListener('input', function() {
+      clearTimeout(_csTimer);
+      _csTimer = setTimeout(() => {
+        if (!diagram) return;
+        const q = this.value.toLowerCase().trim();
+        if (!q) { _clearCanvasSearch(); return; }
+        Object.entries(diagram.cards).forEach(([name, card]) => {
+          const tbl   = PROJECT.tables[name];
+          const match = name.toLowerCase().includes(q) ||
+            (tbl && tbl.columns.some(c => c.name.toLowerCase().includes(q) || c.type.toLowerCase().includes(q)));
+          card.style.opacity = match ? '1' : '0.12';
+        });
+      }, 180);
+    });
+  });
+
+  // ── Docs: collapse / expand all ──────────────────────────────────────────
+  function collapseAllDocs() {
+    document.querySelectorAll('.docs-group-toggle').forEach(el => {
+      el.classList.add('collapsed');
+      el.nextElementSibling.classList.add('collapsed');
+    });
+  }
+
+  function expandAllDocs() {
+    document.querySelectorAll('.docs-group-toggle, .docs-table-toggle').forEach(el => {
+      el.classList.remove('collapsed');
+      el.nextElementSibling.classList.remove('collapsed');
+    });
+  }
+
+  // ── Docs: collapsible groups ──────────────────────────────────────────────
+  function toggleDocsGroup(titleEl) {
+    const body = titleEl.nextElementSibling;
+    const open = !body.classList.contains('collapsed');
+    titleEl.classList.toggle('collapsed', open);
+    body.classList.toggle('collapsed', open);
+  }
+
+  // ── Docs: collapsible table cards ─────────────────────────────────────────
+  function toggleDocsTable(headerEl) {
+    const body = headerEl.nextElementSibling;
+    const open = !body.classList.contains('collapsed');
+    headerEl.classList.toggle('collapsed', open);
+    body.classList.toggle('collapsed', open);
+  }
+
+  // ── Docs: inline column note editing ─────────────────────────────────────
+  let _colNotesCache = Object.assign({}, PROJECT.column_notes || {});
+  let _colNoteTimer  = null;
+
+  function _saveColNotes() {
+    clearTimeout(_colNoteTimer);
+    _colNoteTimer = setTimeout(() => {
+      fetch(`/project/${PROJECT.id}/column_notes`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(_colNotesCache),
+      });
+    }, 800);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Apply saved column notes from DB (override DBML notes)
+    Object.entries(_colNotesCache).forEach(([key, text]) => {
+      const [tbl, col] = key.split('::');
+      const cell = document.querySelector(`.col-note[data-table="${tbl}"][data-col="${col}"]`);
+      if (cell && text) cell.textContent = text;
+    });
+
+    // Listen for edits
+    document.querySelectorAll('td.col-note[contenteditable]').forEach(cell => {
+      cell.addEventListener('blur', () => {
+        const key  = `${cell.dataset.table}::${cell.dataset.col}`;
+        const text = cell.textContent.trim();
+        _colNotesCache[key] = text;
+        _saveColNotes();
+      });
+      // Prevent newlines
+      cell.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); cell.blur(); }
+      });
+      // Stop click from collapsing the card header
+      cell.addEventListener('click', e => e.stopPropagation());
+    });
+  });
 </script>
 
 <script>
@@ -499,14 +654,16 @@
     document.querySelectorAll('.toolbar-tab').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
     btn.classList.add('active');
-    const diagramOnly = name === 'diagram' ? 'flex' : 'none';
-    document.getElementById('zoomControls').style.display   = diagramOnly;
-    document.getElementById('diagramActions').style.display = diagramOnly;
-    if (name === 'docs') {
-      // Lazy-init EasyMDE la prima volta che il tab è visibile,
-      // poi refresh per correggere il layout di CodeMirror
+    const isDiagram = name === 'diagram';
+    document.getElementById('zoomControls').style.display    = isDiagram ? 'flex' : 'none';
+    document.getElementById('diagramActions').style.display  = isDiagram ? 'flex' : 'none';
+    document.getElementById('docsActions').style.display     = isDiagram ? 'none' : 'flex';
+    if (!isDiagram) {
       initMarkdownEditor();
       setTimeout(() => easyMDE && easyMDE.codemirror.refresh(), 20);
+      // reset canvas search
+      const cs = document.getElementById('canvasSearch');
+      if (cs) { cs.value = ''; _clearCanvasSearch(); }
     }
   }
 
@@ -703,7 +860,8 @@
         if (col.not_null && !col.pk) attrs.push('not null');
         if (col.unique)   attrs.push('unique');
         if (col.default != null) attrs.push(`default: ${col.default}`);
-        if (col.note)     attrs.push(`note: '${col.note.replace(/'/g, "\\'")}'`);
+        const noteText = _colNotesCache[`${tname}::${col.name}`] || col.note || null;
+        if (noteText)     attrs.push(`note: '${noteText.replace(/'/g, "\\'")}'`);
         if (attrs.length) def += ` [${attrs.join(', ')}]`;
         lines.push(def);
       }
@@ -746,7 +904,7 @@
     const t = type.toLowerCase();
 
     if (dialect === 'sqlite') {
-      if (t === 'boolean' || t === 'bool')                       return 'INTEGER';
+      if (t === 'boolean' || t === 'bool')                        return 'INTEGER';
       if (t === 'serial')                                         return 'INTEGER';
       if (t === 'bigserial')                                      return 'INTEGER';
       if (t === 'smallint' || t === 'int2')                       return 'INTEGER';
@@ -764,12 +922,18 @@
     }
 
     // MSSQL type mappings
-    if (t === 'boolean' || t === 'bool')            return 'BIT';
+    if (t === 'boolean' || t === 'bool')             return 'BIT';
     if (t === 'serial')                              return 'INT IDENTITY(1,1)';
     if (t === 'bigserial')                           return 'BIGINT IDENTITY(1,1)';
     if (t === 'text')                                return 'NVARCHAR(MAX)';
-    if (t.startsWith('varchar'))                     return type.replace(/varchar/i, 'NVARCHAR');
-    if (t.startsWith('char(') || t === 'char')       return type.replace(/^char/i, 'NCHAR');
+    if (t.startsWith('varchar')) {
+      const m = type.replace(/varchar/i, 'NVARCHAR');
+      return m.toUpperCase() === 'NVARCHAR' ? 'NVARCHAR(MAX)' : m;
+    }
+    if (t === 'char' || t.startsWith('char(')) {
+      const m = type.replace(/^char/i, 'NCHAR');
+      return m.toUpperCase() === 'NCHAR' ? 'NCHAR(1)' : m;
+    }
     if (t === 'bytea')                               return 'VARBINARY(MAX)';
     if (t === 'json' || t === 'jsonb')               return 'NVARCHAR(MAX)';
     if (t === 'uuid')                                return 'UNIQUEIDENTIFIER';
@@ -791,6 +955,7 @@
     lines.push(`-- Generated by DBML Docs`);
     lines.push(`-- Project: ${PROJECT.name}`);
     lines.push(`-- Dialect: ${dialectLabel}`);
+    lines.push(`-- Nota: tipi custom/enum potrebbero richiedere creazione manuale (es. CREATE TYPE)`);
     lines.push('');
 
     if (dialect === 'sqlite') {
@@ -935,9 +1100,13 @@
     svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`);
     svgParts.push(`<rect width="${W}" height="${H}" fill="#f1f5f9"/>`);
 
+    const hiddenGroups = diagram._hiddenGroups || new Set();
+    const hiddenTables = diagram._hiddenTables || new Set();
+
     // Group containers
     for (const [gname, tnames] of Object.entries(groups)) {
-      const valid = tnames.filter(t => tables[t] && pos[t]);
+      if (hiddenGroups.has(gname)) continue;
+      const valid = tnames.filter(t => tables[t] && pos[t] && !hiddenTables.has(t));
       if (!valid.length) continue;
       const color = groupColorMap[gname] || '#64748b';
       let gx1 = Infinity, gy1 = Infinity, gx2 = -Infinity, gy2 = -Infinity;
@@ -952,7 +1121,7 @@
       svgParts.push(`<text x="${rx+18}" y="${ry+5}" font-family="system-ui,sans-serif" font-size="12" font-weight="600" fill="#fff">${esc(gname)}</text>`);
     }
 
-    // Connection lines
+    // Connection lines (skip hidden)
     function connPoints(fromT, toT) {
       const fp = pos[fromT], tp = pos[toT];
       if (!fp || !tp) return null;
@@ -967,6 +1136,10 @@
     }
 
     for (const r of refs) {
+      if (hiddenTables.has(r.from_table) || hiddenTables.has(r.to_table)) continue;
+      const fg = tableGroupMap[r.from_table], tg = tableGroupMap[r.to_table];
+      if (fg && hiddenGroups.has(fg)) continue;
+      if (tg && hiddenGroups.has(tg)) continue;
       const p = connPoints(r.from_table, r.to_table);
       if (!p) continue;
       const { x1, y1, x2, y2, dx } = p;
@@ -976,9 +1149,12 @@
     // Arrow marker def
     svgParts.splice(2, 0, `<defs><marker id="svgArr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#94a3b8"/></marker></defs>`);
 
-    // Table cards
+    // Table cards (skip hidden)
     for (const [tname, tbl] of Object.entries(tables)) {
       if (!pos[tname]) continue;
+      if (hiddenTables.has(tname)) continue;
+      const tgrp = tableGroupMap[tname];
+      if (tgrp && hiddenGroups.has(tgrp)) continue;
       const { x, y } = pos[tname];
       const sx = x + ox, sy = y + oy;
       const h  = cardH(tbl);

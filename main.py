@@ -1,11 +1,13 @@
 """FastAPI application — DBML Docs."""
+import csv
+import io
 import json
 import uuid
 from pathlib import Path
 
 import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -31,13 +33,15 @@ def _to_dict(p: Project) -> dict:
     return {
         "id":              p.id,
         "name":            p.name,
-        "tables":          json.loads(p.tables_data     or "{}"),
-        "groups":          json.loads(p.groups_data     or "{}"),
-        "refs":            json.loads(p.refs_data       or "[]"),
-        "ungrouped":       json.loads(p.ungrouped_data  or "[]"),
-        "saved_positions": json.loads(p.saved_positions or "{}"),
-        "notes":           json.loads(p.notes_data      or "[]"),
-        "markdown_notes":  p.markdown_notes             or "",
+        "tables":          json.loads(p.tables_data          or "{}"),
+        "groups":          json.loads(p.groups_data          or "{}"),
+        "refs":            json.loads(p.refs_data            or "[]"),
+        "ungrouped":       json.loads(p.ungrouped_data       or "[]"),
+        "saved_positions": json.loads(p.saved_positions      or "{}"),
+        "notes":           json.loads(p.notes_data           or "[]"),
+        "markdown_notes":  p.markdown_notes                  or "",
+        "column_notes":    json.loads(p.column_notes_data    or "{}"),
+        "created_at":      p.created_at.strftime("%d/%m/%Y") if p.created_at else "",
     }
 
 
@@ -149,6 +153,122 @@ async def save_markdown(pid: str, request: Request, db: Session = Depends(get_db
     p.markdown_notes = body.get("content", "")
     db.commit()
     return {"ok": True}
+
+
+@app.post("/project/{pid}/column_notes")
+async def save_column_notes(pid: str, request: Request, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    p.column_notes_data = json.dumps(await request.json())
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/project/{pid}/reupload")
+async def reupload_project(
+    pid: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    p = _get_or_404(db, pid)
+    raw = await file.read()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("latin-1")
+    try:
+        parsed = parse_dbml(content)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    p.tables_data     = json.dumps(parsed["tables"])
+    p.groups_data     = json.dumps(parsed["groups"])
+    p.refs_data       = json.dumps(parsed["refs"])
+    p.ungrouped_data  = json.dumps(parsed["ungrouped"])
+    p.saved_positions = "{}"
+    db.commit()
+    return RedirectResponse(f"/project/{pid}", status_code=303)
+
+
+@app.get("/project/{pid}/export")
+async def export_project(pid: str, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "id", "name", "tables_data", "groups_data", "refs_data",
+        "ungrouped_data", "saved_positions", "notes_data",
+        "markdown_notes", "column_notes_data",
+    ])
+    writer.writerow([
+        p.id,
+        p.name,
+        p.tables_data    or "{}",
+        p.groups_data    or "{}",
+        p.refs_data      or "[]",
+        p.ungrouped_data or "[]",
+        p.saved_positions or "{}",
+        p.notes_data     or "[]",
+        p.markdown_notes or "",
+        p.column_notes_data or "{}",
+    ])
+    filename = p.name.replace(" ", "_") + ".dbmldoc.csv"
+    return StreamingResponse(
+        io.BytesIO(buf.getvalue().encode("utf-8")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/import-project")
+async def import_project(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    raw = await file.read()
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(content))
+    row = next(reader, None)
+    if not row or "tables_data" not in row:
+        raise HTTPException(status_code=400, detail="File CSV non valido o non riconosciuto")
+
+    new_p = Project(
+        id              = str(uuid.uuid4())[:8],
+        name            = row.get("name", "Progetto importato"),
+        tables_data     = row.get("tables_data",     "{}"),
+        groups_data     = row.get("groups_data",     "{}"),
+        refs_data       = row.get("refs_data",       "[]"),
+        ungrouped_data  = row.get("ungrouped_data",  "[]"),
+        saved_positions = row.get("saved_positions", "{}"),
+        notes_data      = row.get("notes_data",      "[]"),
+        markdown_notes  = row.get("markdown_notes",  ""),
+        column_notes_data = row.get("column_notes_data", "{}"),
+    )
+    db.add(new_p)
+    db.commit()
+    return RedirectResponse(f"/project/{new_p.id}", status_code=303)
+
+
+@app.post("/project/{pid}/duplicate")
+async def duplicate_project(pid: str, db: Session = Depends(get_db)):
+    p = _get_or_404(db, pid)
+    new_p = Project(
+        id                = str(uuid.uuid4())[:8],
+        name              = p.name + " (copia)",
+        tables_data       = p.tables_data,
+        groups_data       = p.groups_data,
+        refs_data         = p.refs_data,
+        ungrouped_data    = p.ungrouped_data,
+        saved_positions   = p.saved_positions,
+        notes_data        = p.notes_data,
+        markdown_notes    = p.markdown_notes,
+        column_notes_data = p.column_notes_data,
+    )
+    db.add(new_p)
+    db.commit()
+    return RedirectResponse(f"/project/{new_p.id}", status_code=303)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

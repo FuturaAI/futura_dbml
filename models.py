@@ -22,9 +22,10 @@ class Project(Base):
     ungrouped_data:  Mapped[str]            = mapped_column(Text, default="[]")
 
     # User-editable state
-    saved_positions: Mapped[str]            = mapped_column(Text, default="{}")
-    notes_data:      Mapped[str]            = mapped_column(Text, default="[]")   # post-it notes
-    markdown_notes:  Mapped[Optional[str]]  = mapped_column(Text, default="")
+    saved_positions:  Mapped[str]           = mapped_column(Text, default="{}")
+    notes_data:       Mapped[str]           = mapped_column(Text, default="[]")   # post-it notes
+    markdown_notes:   Mapped[Optional[str]] = mapped_column(Text, default="")
+    column_notes_data: Mapped[str]          = mapped_column(Text, default="{}")   # "table::col" → note
 
     created_at:      Mapped[Optional[datetime]] = mapped_column(
         DateTime, server_default=func.now()

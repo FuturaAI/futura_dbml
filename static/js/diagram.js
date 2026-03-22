@@ -68,6 +68,8 @@ class Diagram {
     this._renderConnections();
     this._bindPanZoom();
     this._applyTransform();
+    this._restoreVisibility();
+    this._setupMinimap();
   }
 
   // ── helpers ─────────────────────────────────────────────────────────────────
@@ -272,6 +274,57 @@ class Diagram {
       el.style.cursor = '';
       this._savePositions();
     });
+
+    // Touch drag for group
+    el.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      if (e.target.closest('.table-card') || e.target.closest('.postit')) return;
+      e.stopPropagation();
+      const t = e.touches[0];
+      dragging = true; startMX = t.clientX; startMY = t.clientY;
+      tableNames.forEach(tn => { if (this.positions[tn]) startPos[tn] = { ...this.positions[tn] }; });
+    }, { passive: true });
+
+    el.addEventListener('touchmove', e => {
+      if (!dragging || e.touches.length !== 1) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      const dx = (t.clientX - startMX) / this.scale;
+      const dy = (t.clientY - startMY) / this.scale;
+      tableNames.forEach(tn => {
+        if (!startPos[tn]) return;
+        this.positions[tn] = { x: startPos[tn].x + dx, y: startPos[tn].y + dy };
+        const card = this.cards[tn];
+        if (card) { card.style.left = this.positions[tn].x + 'px'; card.style.top = this.positions[tn].y + 'px'; }
+      });
+      this._updateGroupContainers();
+      this._renderConnections(this.activeTable);
+      this._updateSVGSize();
+    }, { passive: false });
+
+    el.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false; startPos = {};
+      this._savePositions();
+    }, { passive: true });
+  }
+
+  // ── visibility persistence ───────────────────────────────────────────────────
+
+  _persistVisibility() {
+    const pid = this.project.id;
+    localStorage.setItem(`dbml_hg_${pid}`, JSON.stringify([...this._hiddenGroups]));
+    localStorage.setItem(`dbml_ht_${pid}`, JSON.stringify([...this._hiddenTables]));
+  }
+
+  _restoreVisibility() {
+    const pid = this.project.id;
+    try {
+      const hg = JSON.parse(localStorage.getItem(`dbml_hg_${pid}`) || '[]');
+      const ht = JSON.parse(localStorage.getItem(`dbml_ht_${pid}`) || '[]');
+      hg.forEach(g => this.toggleGroupVisibility(g));
+      ht.forEach(t => this.toggleTableVisibility(t));
+    } catch {}
   }
 
   // ── eye toggle ───────────────────────────────────────────────────────────────
@@ -303,6 +356,8 @@ class Diagram {
     }
 
     this._renderConnections(this.activeTable);
+    this._persistVisibility();
+    this._updateMinimap();
   }
 
   toggleTableVisibility(name) {
@@ -329,6 +384,8 @@ class Diagram {
     // Also collapse the group container height if needed
     this._updateGroupContainers();
     this._renderConnections(this.activeTable);
+    this._persistVisibility();
+    this._updateMinimap();
   }
 
   // ── table cards ──────────────────────────────────────────────────────────────
@@ -549,6 +606,39 @@ class Diagram {
       if (hasMoved) this._savePositions();
       else          this.focusTable(name);
     });
+
+    // Touch drag
+    card.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      e.stopPropagation();
+      const t = e.touches[0];
+      dragging = true; hasMoved = false;
+      startMX = t.clientX; startMY = t.clientY;
+      startPX = this.positions[name].x; startPY = this.positions[name].y;
+      card.style.zIndex = '20';
+    }, { passive: true });
+
+    card.addEventListener('touchmove', e => {
+      if (!dragging || e.touches.length !== 1) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      const dx = (t.clientX - startMX) / this.scale;
+      const dy = (t.clientY - startMY) / this.scale;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+      this.positions[name] = { x: startPX + dx, y: startPY + dy };
+      card.style.left = this.positions[name].x + 'px';
+      card.style.top  = this.positions[name].y + 'px';
+      this._updateGroupContainers();
+      this._renderConnections(this.activeTable);
+      this._updateSVGSize();
+    }, { passive: false });
+
+    card.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false; card.style.zIndex = '';
+      if (hasMoved) this._savePositions();
+      else          this.focusTable(name);
+    }, { passive: true });
   }
 
   _savePositions() {
@@ -632,6 +722,33 @@ class Diagram {
       dragging = false; el.style.zIndex = '';
       this._saveNotes();
     });
+
+    // Touch drag for post-it
+    handle.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      e.stopPropagation(); e.preventDefault();
+      const t = e.touches[0];
+      dragging = true;
+      startMX = t.clientX; startMY = t.clientY;
+      startPX = note.x; startPY = note.y;
+      el.style.zIndex = '30';
+    }, { passive: false });
+
+    handle.addEventListener('touchmove', e => {
+      if (!dragging || e.touches.length !== 1) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      note.x = startPX + (t.clientX - startMX) / this.scale;
+      note.y = startPY + (t.clientY - startMY) / this.scale;
+      el.style.left = note.x + 'px';
+      el.style.top  = note.y + 'px';
+    }, { passive: false });
+
+    handle.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false; el.style.zIndex = '';
+      this._saveNotes();
+    }, { passive: true });
   }
 
   addNote(canvasX, canvasY) {
@@ -711,6 +828,54 @@ class Diagram {
       this.addNote(e.clientX - rect.left, e.clientY - rect.top);
     });
 
+    // ── Touch pan & pinch-zoom ────────────────────────────────────────────────
+    let touchPanX0 = 0, touchPanY0 = 0, touchX0 = 0, touchY0 = 0;
+    let lastPinchDist = null;
+
+    this.container.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        const onBg = e.target === this.container || e.target === this.canvas || e.target === this.svg;
+        if (!onBg) return;
+        const t = e.touches[0];
+        touchX0 = t.clientX; touchY0 = t.clientY;
+        touchPanX0 = this.panX; touchPanY0 = this.panY;
+        this.activeTable = null;
+        this._clearHighlight();
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastPinchDist = Math.hypot(dx, dy);
+      }
+    }, { passive: true });
+
+    this.container.addEventListener('touchmove', e => {
+      if (e.touches.length === 1) {
+        const onBg = e.target === this.container || e.target === this.canvas || e.target === this.svg;
+        if (!onBg) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        this.panX = touchPanX0 + (t.clientX - touchX0);
+        this.panY = touchPanY0 + (t.clientY - touchY0);
+        this._applyTransform();
+      } else if (e.touches.length === 2 && lastPinchDist) {
+        e.preventDefault();
+        const dx   = e.touches[0].clientX - e.touches[1].clientX;
+        const dy   = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const newScale = Math.min(3, Math.max(0.15, this.scale * (dist / lastPinchDist)));
+        const rect = this.container.getBoundingClientRect();
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+        this.panX = cx - (cx - this.panX) * (newScale / this.scale);
+        this.panY = cy - (cy - this.panY) * (newScale / this.scale);
+        this.scale = newScale;
+        lastPinchDist = dist;
+        this._applyTransform();
+      }
+    }, { passive: false });
+
+    this.container.addEventListener('touchend', () => { lastPinchDist = null; }, { passive: true });
+
     this.container.addEventListener('wheel', e => {
       e.preventDefault();
       const factor   = e.deltaY < 0 ? 1.1 : 0.9;
@@ -729,6 +894,184 @@ class Diagram {
     this.canvas.style.transform = `translate(${this.panX}px,${this.panY}px) scale(${this.scale})`;
     const label = document.getElementById('zoomLabel');
     if (label) label.textContent = Math.round(this.scale * 100) + '%';
+    this._updateMinimap();
+  }
+
+  // ── minimap ──────────────────────────────────────────────────────────────────
+
+  _setupMinimap() {
+    // roundRect polyfill for older browsers
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        r = Math.min(r, w / 2, h / 2);
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);  this.arcTo(x + w, y, x + w, y + r, r);
+        this.lineTo(x + w, y + h - r); this.arcTo(x + w, y + h, x + w - r, y + h, r);
+        this.lineTo(x + r, y + h);  this.arcTo(x, y + h, x, y + h - r, r);
+        this.lineTo(x, y + r);      this.arcTo(x, y, x + r, y, r);
+        this.closePath();
+      };
+    }
+
+    const MM_W = 200, MM_H = 130;
+    const DPR  = window.devicePixelRatio || 1;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'minimap';
+
+    const header = document.createElement('div');
+    header.className = 'minimap-header';
+    header.textContent = 'Mappa';
+
+    const toggle = document.createElement('button');
+    toggle.className = 'minimap-toggle';
+    toggle.title = 'Nascondi mappa';
+    toggle.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+    let collapsed = false;
+    toggle.addEventListener('click', e => {
+      e.stopPropagation();
+      collapsed = !collapsed;
+      cv.style.display = collapsed ? 'none' : 'block';
+      wrap.classList.toggle('minimap-collapsed', collapsed);
+      toggle.title = collapsed ? 'Mostra mappa' : 'Nascondi mappa';
+      toggle.innerHTML = collapsed
+        ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`
+        : `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    });
+
+    header.appendChild(toggle);
+    wrap.appendChild(header);
+
+    const cv = document.createElement('canvas');
+    cv.className = 'minimap-canvas';
+    cv.width  = MM_W * DPR;
+    cv.height = MM_H * DPR;
+    cv.style.width  = MM_W + 'px';
+    cv.style.height = MM_H + 'px';
+    wrap.appendChild(cv);
+    this.container.appendChild(wrap);
+
+    const ctx = cv.getContext('2d');
+    ctx.scale(DPR, DPR);
+
+    this._mmEl  = wrap;
+    this._mmCv  = cv;
+    this._mmCtx = ctx;
+    this._mmW   = MM_W;
+    this._mmH   = MM_H;
+    this._mmLast = null;
+    this._mmDragging = false;
+
+    const navigate = e => {
+      const rect = cv.getBoundingClientRect();
+      const { mmScale, mmMinX, mmMinY } = this._mmLast || {};
+      if (!mmScale) return;
+      const cx = (e.clientX - rect.left)  / mmScale + mmMinX;
+      const cy = (e.clientY - rect.top)   / mmScale + mmMinY;
+      const cr = this.container.getBoundingClientRect();
+      this.panX = cr.width  / 2 - cx * this.scale;
+      this.panY = cr.height / 2 - cy * this.scale;
+      this._applyTransform();
+    };
+
+    cv.addEventListener('mousedown',  e => { e.stopPropagation(); this._mmDragging = true; navigate(e); });
+    cv.addEventListener('mousemove',  e => { if (this._mmDragging) navigate(e); });
+    document.addEventListener('mouseup', () => { this._mmDragging = false; });
+    cv.addEventListener('touchstart', e => { e.stopPropagation(); this._mmDragging = true; navigate(e.touches[0]); }, { passive: true });
+    cv.addEventListener('touchmove',  e => { if (this._mmDragging) navigate(e.touches[0]); }, { passive: true });
+    cv.addEventListener('touchend',   () => { this._mmDragging = false; }, { passive: true });
+
+    this._updateMinimap();
+  }
+
+  _updateMinimap() {
+    if (!this._mmCtx) return;
+    const tables = this.project.tables || {};
+    const groups = this.project.groups || {};
+    const ctx    = this._mmCtx;
+    const W = this._mmW, H = this._mmH;
+
+    // Bounds of all visible tables
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [name, tbl] of Object.entries(tables)) {
+      if (this._hiddenTables.has(name)) continue;
+      const grp = this._tableGroupMap[name];
+      if (grp && this._hiddenGroups.has(grp)) continue;
+      const pos = this.positions[name];
+      if (!pos) continue;
+      minX = Math.min(minX, pos.x);           minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + CARD_WIDTH); maxY = Math.max(maxY, pos.y + this._cardHeight(tbl));
+    }
+    if (!isFinite(minX)) { ctx.clearRect(0, 0, W, H); return; }
+
+    const PAD = 10;
+    const scaleX = (W - PAD * 2) / Math.max(1, maxX - minX);
+    const scaleY = (H - PAD * 2) / Math.max(1, maxY - minY);
+    const mmScale = Math.min(scaleX, scaleY);
+    const mmMinX  = minX - PAD / mmScale;
+    const mmMinY  = minY - PAD / mmScale;
+    this._mmLast  = { mmScale, mmMinX, mmMinY };
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(0, 0, W, H);
+
+    // Group containers
+    for (const [gname, tnames] of Object.entries(groups)) {
+      if (this._hiddenGroups.has(gname)) continue;
+      const color = this._groupColorMap[gname] || '#64748b';
+      const valid = tnames.filter(t => tables[t] && this.positions[t] && !this._hiddenTables.has(t));
+      if (!valid.length) continue;
+      let gx1 = Infinity, gy1 = Infinity, gx2 = -Infinity, gy2 = -Infinity;
+      for (const n of valid) {
+        gx1 = Math.min(gx1, this.positions[n].x); gy1 = Math.min(gy1, this.positions[n].y);
+        gx2 = Math.max(gx2, this.positions[n].x + CARD_WIDTH);
+        gy2 = Math.max(gy2, this.positions[n].y + this._cardHeight(tables[n]));
+      }
+      const rx = (gx1 - GRP_PAD - mmMinX) * mmScale;
+      const ry = (gy1 - GRP_PAD - GRP_LABEL_H - mmMinY) * mmScale;
+      const rw = (gx2 - gx1 + GRP_PAD * 2) * mmScale;
+      const rh = (gy2 - gy1 + GRP_PAD * 2 + GRP_LABEL_H) * mmScale;
+      const r  = parseInt(color.slice(1,3),16);
+      const g  = parseInt(color.slice(3,5),16);
+      const b  = parseInt(color.slice(5,7),16);
+      ctx.fillStyle   = `rgba(${r},${g},${b},0.12)`;
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 1;
+      ctx.beginPath(); ctx.roundRect(rx, ry, rw, rh, 3); ctx.fill(); ctx.stroke();
+    }
+
+    // Table cards
+    for (const [name, tbl] of Object.entries(tables)) {
+      if (this._hiddenTables.has(name)) continue;
+      const grp = this._tableGroupMap[name];
+      if (grp && this._hiddenGroups.has(grp)) continue;
+      const pos = this.positions[name];
+      if (!pos) continue;
+      const color = this._color(name);
+      const x = (pos.x - mmMinX) * mmScale, y = (pos.y - mmMinY) * mmScale;
+      const w = CARD_WIDTH * mmScale,        h = this._cardHeight(tbl) * mmScale;
+      const hh = Math.min(HEADER_H * mmScale, h);
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.roundRect(x, y, w, h, 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x, y, w, hh, 2); ctx.fill();
+      if (hh < h) ctx.fillRect(x, y + hh - 1, w, 1);
+    }
+
+    // Viewport rect
+    const cr = this.container.getBoundingClientRect();
+    const vx = (-this.panX / this.scale - mmMinX) * mmScale;
+    const vy = (-this.panY / this.scale - mmMinY) * mmScale;
+    const vw = (cr.width  / this.scale) * mmScale;
+    const vh = (cr.height / this.scale) * mmScale;
+    ctx.fillStyle   = 'rgba(59,130,246,0.07)';
+    ctx.strokeStyle = 'rgba(59,130,246,0.7)';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath(); ctx.rect(vx, vy, vw, vh); ctx.fill(); ctx.stroke();
   }
 
   _updateSVGSize() {
@@ -804,6 +1147,46 @@ class Diagram {
   zoomIn()    { this.scale = Math.min(3,    this.scale * 1.15); this._applyTransform(); }
   zoomOut()   { this.scale = Math.max(0.15, this.scale / 1.15); this._applyTransform(); }
   resetView() { this.scale = 0.85; this.panX = 0; this.panY = 0; this._applyTransform(); }
+
+  fitToScreen() {
+    const tables = this.project.tables || {};
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [name, tbl] of Object.entries(tables)) {
+      if (this._hiddenTables.has(name)) continue;
+      const grp = this._tableGroupMap[name];
+      if (grp && this._hiddenGroups.has(grp)) continue;
+      const pos = this.positions[name];
+      if (!pos) continue;
+      minX = Math.min(minX, pos.x); minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + CARD_WIDTH);
+      maxY = Math.max(maxY, pos.y + this._cardHeight(tbl));
+    }
+    if (!isFinite(minX)) return;
+    const rect = this.container.getBoundingClientRect();
+    const PAD  = 48;
+    const sx = (rect.width  - PAD * 2) / (maxX - minX);
+    const sy = (rect.height - PAD * 2) / (maxY - minY);
+    this.scale = Math.min(3, Math.max(0.15, Math.min(sx, sy)));
+    this.panX  = PAD - minX * this.scale;
+    this.panY  = PAD - minY * this.scale;
+    this._applyTransform();
+  }
+
+  resetLayout() {
+    const savedBackup = this.project.saved_positions;
+    this.project.saved_positions = {};
+    this.positions = {};
+    this._autoLayout();
+    this.project.saved_positions = savedBackup;
+    for (const [name, card] of Object.entries(this.cards)) {
+      const pos = this.positions[name];
+      if (pos) { card.style.left = pos.x + 'px'; card.style.top = pos.y + 'px'; }
+    }
+    this._updateGroupContainers();
+    this._renderConnections();
+    this._updateSVGSize();
+    this._savePositions();
+  }
 }
 
 // ── bootstrap ─────────────────────────────────────────────────────────────────

@@ -48,8 +48,31 @@
           <input type="file" id="file" name="file" accept=".dbml,.txt" required class="file-input" />
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block">Carica e genera documentazione</button>
+        <button type="submit" class="btn btn-primary btn-block" id="submitBtn">Carica e genera documentazione</button>
       </form>
+    </div>
+
+    <!-- Import from CSV -->
+    <div class="import-card" id="importCard">
+      <button class="import-toggle" onclick="toggleImport()" id="importToggle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importa progetto da backup CSV
+        <svg class="import-chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="import-body" id="importBody" style="display:none">
+        <form action="/import-project" method="post" enctype="multipart/form-data" id="importForm">
+          <div class="import-drop" id="importDrop">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#94a3b8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+            <p id="importDropText">Trascina il file <code>.dbmldoc.csv</code> qui<br/>o <span class="link-text">clicca per scegliere</span></p>
+            <p id="importFileName" class="file-name hidden"></p>
+            <input type="file" id="importFile" name="file" accept=".csv,.dbmldoc.csv" required class="file-input" />
+          </div>
+          <button type="submit" class="btn btn-import btn-block" id="importBtn">Importa progetto</button>
+        </form>
+      </div>
     </div>
 
     <!-- Projects list -->
@@ -68,6 +91,7 @@
                 {{ p.groups | length }} gruppi &middot;
                 {{ p.refs | length }} relazioni
               </div>
+              {% if p.created_at %}<div class="project-date">{{ p.created_at }}</div>{% endif %}
             </div>
           </div>
           <div class="project-groups">
@@ -108,6 +132,50 @@
 
     fileInput.addEventListener('change', () => {
       if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    // Import section
+    function toggleImport() {
+      const body  = document.getElementById('importBody');
+      const chev  = document.querySelector('.import-chev');
+      const open  = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      chev.style.transform = open ? '' : 'rotate(180deg)';
+    }
+
+    const importDrop = document.getElementById('importDrop');
+    const importFile = document.getElementById('importFile');
+    const importDropText = document.getElementById('importDropText');
+    const importFileName = document.getElementById('importFileName');
+
+    importDrop.addEventListener('click', e => { if (e.target !== importFile) importFile.click(); });
+    importDrop.addEventListener('dragover', e => { e.preventDefault(); importDrop.classList.add('drag-over'); });
+    importDrop.addEventListener('dragleave', () => importDrop.classList.remove('drag-over'));
+    importDrop.addEventListener('drop', e => {
+      e.preventDefault(); importDrop.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) setImportFile(f);
+    });
+    importFile.addEventListener('change', () => { if (importFile.files[0]) setImportFile(importFile.files[0]); });
+
+    function setImportFile(f) {
+      const dt = new DataTransfer(); dt.items.add(f); importFile.files = dt.files;
+      importDropText.classList.add('hidden');
+      importFileName.textContent = f.name;
+      importFileName.classList.remove('hidden');
+      importDrop.classList.add('has-file');
+    }
+
+    document.getElementById('importForm').addEventListener('submit', () => {
+      const btn = document.getElementById('importBtn');
+      btn.textContent = 'Importazione in corso...';
+      btn.disabled = true;
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', () => {
+      const btn = document.getElementById('submitBtn');
+      btn.textContent = 'Caricamento in corso...';
+      btn.disabled = true;
     });
 
     function setFile(f) {
