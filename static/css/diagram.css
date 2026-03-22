@@ -101,7 +101,7 @@
 .card-schema { font-size: 10px; color: rgba(255,255,255,.65); font-weight: 500; }
 .card-table-name { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.card-eye-btn {
+.card-copy-btn, .card-eye-btn {
   background: rgba(255,255,255,.15);
   border: none; border-radius: 50%;
   width: 22px; height: 22px;
@@ -113,7 +113,10 @@
 }
 .table-card:hover .card-eye-btn { opacity: 1; }
 .table-card.table-hidden .card-eye-btn { opacity: 1; }
-.card-eye-btn:hover { background: rgba(255,255,255,.3); }
+.card-eye-btn:hover, .card-copy-btn:hover { background: rgba(255,255,255,.3); }
+.card-copy-btn { opacity: 0.55; color: rgba(255,255,255,.85); }
+.card-copy-btn svg { stroke: rgba(255,255,255,.85); }
+.table-card:hover .card-copy-btn { opacity: 1; }
 
 .table-card.table-hidden {
   opacity: 0.55;
@@ -289,3 +292,19 @@
 .export-divider {
   height: 1px; background: var(--border); margin: 4px 0;
 }
+
+/* ── Dark mode overrides ─────────────────────────────────── */
+[data-theme="dark"] .col-row:hover { background: #1a2740; }
+[data-theme="dark"] .col-row.ref-highlight { background: #1e1f5e; border-left-color: #818cf8; }
+[data-theme="dark"] .badge-card-nn { background: #422006; color: #fbbf24; }
+[data-theme="dark"] .badge-card-uq { background: #2e1065; color: #a78bfa; }
+[data-theme="dark"] .badge-card-fk { background: #1e3a5f; color: #93c5fd; }
+[data-theme="dark"] .group-container { background: rgba(255,255,255,.03) !important; }
+[data-theme="dark"] .export-menu { background: #1e293b; border-color: #334155; }
+[data-theme="dark"] .export-item { color: #e2e8f0; }
+[data-theme="dark"] .export-item:hover { background: #334155; }
+[data-theme="dark"] .minimap { background: rgba(15,23,42,.95); border-color: #334155; }
+[data-theme="dark"] .minimap-header { border-color: #334155; color: #94a3b8; }
+[data-theme="dark"] .canvas-search-wrap { background: #1e293b; border-color: #334155; }
+[data-theme="dark"] .btn-toolbar-action { background: #1e293b; border-color: #334155; color: #94a3b8; }
+[data-theme="dark"] .btn-toolbar-action:hover { background: #334155; color: #e2e8f0; }

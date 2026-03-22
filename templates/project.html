@@ -4,14 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ project.name }} - DBML Docs</title>
-  <link rel="stylesheet" href="/static/css/base.css" />
-  <link rel="stylesheet" href="/static/css/layout.css" />
+  <link rel="stylesheet" href="/static/css/base.css?v=2" />
+  <link rel="stylesheet" href="/static/css/layout.css?v=2" />
   <link rel="stylesheet" href="/static/css/sidebar.css" />
-  <link rel="stylesheet" href="/static/css/diagram.css" />
-  <link rel="stylesheet" href="/static/css/docs.css" />
+  <link rel="stylesheet" href="/static/css/diagram.css?v=3" />
+  <link rel="stylesheet" href="/static/css/docs.css?v=2" />
   <link rel="stylesheet" href="/static/css/notes.css" />
-  <link rel="stylesheet" href="/static/css/joinview.css" />
+  <link rel="stylesheet" href="/static/css/joinview.css?v=2" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
+  <script>
+    // Apply saved theme before paint to avoid flash
+    (function(){
+      if(localStorage.getItem('dbml_theme')==='dark')
+        document.documentElement.setAttribute('data-theme','dark');
+    })();
+  </script>
 </head>
 <body class="project-page">
 
@@ -271,6 +278,9 @@
         <button class="zoom-btn" id="exportPngBtn" onclick="diagram && diagram.exportPNG()" title="Esporta PNG" style="margin-left:8px;padding:0 8px;width:auto;font-size:11px;font-weight:600;gap:4px;display:flex;align-items:center">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Esporta PNG
+        </button>
+        <button class="zoom-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Tema chiaro/scuro" style="margin-left:8px;width:28px">
+          <svg id="themeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
         <button class="zoom-btn" onclick="diagram && confirm('Reimpostare il layout? Le posizioni salvate andranno perse.') && diagram.resetLayout()" title="Reset layout" style="margin-left:2px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -616,7 +626,7 @@
 <script src="/static/js/diagram/core.js"></script>
 <script src="/static/js/diagram/layout.js"></script>
 <script src="/static/js/diagram/groups.js"></script>
-<script src="/static/js/diagram/cards.js"></script>
+<script src="/static/js/diagram/cards.js?v=3"></script>
 <script src="/static/js/diagram/connections.js"></script>
 <script src="/static/js/diagram/drag.js"></script>
 <script src="/static/js/diagram/notes.js"></script>

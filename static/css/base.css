@@ -32,3 +32,17 @@ a { text-decoration: none; color: inherit; }
 code { font-family: 'SFMono-Regular', Consolas, monospace; }
 
 .hidden { display: none !important; }
+
+/* ── Dark mode variable overrides ───────────────────────── */
+[data-theme="dark"] {
+  --canvas-bg:          #0d1421;
+  --card-bg:            #1e293b;
+  --card-border:        #334155;
+  --card-shadow:        0 2px 8px rgba(0,0,0,.4);
+  --card-shadow-active: 0 0 0 2px #3b82f6, 0 4px 16px rgba(59,130,246,.25);
+  --text:               #e2e8f0;
+  --text-muted:         #94a3b8;
+  --border:             #334155;
+  color-scheme: dark;
+}
+[data-theme="dark"] body { background: #0d1421; color: #e2e8f0; }

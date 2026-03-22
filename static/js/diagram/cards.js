@@ -30,8 +30,21 @@ Object.assign(Diagram.prototype, {
           ${subLabel ? `<span class="card-schema">${subLabel}</span>` : ''}
           <span class="card-table-name">${tbl.name}</span>
         </div>
+        <button class="card-copy-btn" title="Copia DDL"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" fill="none"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none"/></svg></button>
         <button class="card-eye-btn" title="Mostra/nascondi">${SVG_EYE_OPEN}</button>
       `;
+      header.querySelector('.card-copy-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const ddl = this._generateDDL(name, tbl);
+        navigator.clipboard.writeText(ddl).catch(() => {});
+        const btn = /** @type {HTMLElement} */ (e.currentTarget);
+        btn.style.opacity = '1';
+        btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="#4ade80" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(() => {
+          btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+          btn.style.opacity = '';
+        }, 1200);
+      });
       header.querySelector('.card-eye-btn')?.addEventListener('click', e => {
         e.stopPropagation();
         this.toggleTableVisibility(name);
