@@ -190,6 +190,84 @@ document.getElementById('tableSearch').addEventListener('input', function () {
   });
 });
 
+// ── Global column/table search ────────────────────────────────────────────────
+
+function _gsHi(text, q) {
+  const idx = text.toLowerCase().indexOf(q);
+  if (idx < 0) return text;
+  return text.slice(0, idx) +
+    '<mark>' + text.slice(idx, idx + q.length) + '</mark>' +
+    text.slice(idx + q.length);
+}
+
+function globalSearch(raw) {
+  const panel  = document.getElementById('globalSearchResults');
+  const q      = raw.trim().toLowerCase();
+  if (!q) { panel.style.display = 'none'; return; }
+
+  const tables  = PROJECT.tables || {};
+  const results = [];
+  for (const [tname, tbl] of Object.entries(tables)) {
+    if (tbl.name.toLowerCase().includes(q) || tname.toLowerCase().includes(q))
+      results.push({ type: 'table', tname, tbl });
+    for (const col of tbl.columns) {
+      if (col.name.toLowerCase().includes(q) || col.type.toLowerCase().includes(q))
+        results.push({ type: 'col', tname, tbl, col });
+    }
+  }
+
+  if (!results.length) {
+    panel.innerHTML = '<div class="gs-empty">Nessun risultato</div>';
+    panel.style.display = '';
+    return;
+  }
+
+  let html = '';
+  results.slice(0, 25).forEach(r => {
+    if (r.type === 'table') {
+      html += `<div class="gs-row gs-row--table" onclick="gsFocusTable('${r.tname}')">
+        <span class="gs-badge">TBL</span>
+        <span class="gs-name">${_gsHi(r.tbl.name, q)}</span>
+      </div>`;
+    } else {
+      const badges = (r.col.pk ? '<span class="nav-col-pk">PK</span>' : '') +
+                     (r.col.fk ? '<span class="nav-col-fk">FK</span>' : '');
+      html += `<div class="gs-row" onclick="gsFocusCol('${r.tname}','${r.col.name}')">
+        <span class="gs-tname">${r.tbl.name}</span>
+        <span class="gs-name">${badges}${_gsHi(r.col.name, q)}</span>
+        <code class="gs-type">${r.col.type}</code>
+      </div>`;
+    }
+  });
+  if (results.length > 25)
+    html += `<div class="gs-more">+${results.length - 25} altri — affina la ricerca</div>`;
+
+  panel.innerHTML = html;
+  panel.style.display = '';
+}
+
+function _gsClear() {
+  const inp = document.getElementById('tableSearch');
+  inp.value = '';
+  inp.dispatchEvent(new Event('input'));  // restore sidebar filter
+  globalSearch('');
+}
+
+function gsFocusTable(tname) {
+  _gsClear();
+  const diagBtn = document.querySelector('.toolbar-tab[data-tab="diagram"]');
+  if (diagBtn) switchTab('diagram', diagBtn);
+  if (diagram) diagram.focusTable(tname);
+}
+
+function gsFocusCol(tname, colname) {
+  _gsClear();
+  const diagBtn = document.querySelector('.toolbar-tab[data-tab="diagram"]');
+  if (diagBtn) switchTab('diagram', diagBtn);
+  if (diagram) diagram.focusTable(tname);
+  setTimeout(() => expandAndPulse(tname, colname), 300);
+}
+
 // ── Export dropdown ───────────────────────────────────────────────────────────
 
 function toggleExportMenu(e) {

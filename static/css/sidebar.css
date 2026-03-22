@@ -304,3 +304,33 @@
   transition: background .15s;
 }
 .btn-delete:hover { background: #1e293b; }
+
+/* ── Global search results ───────────────────────────────── */
+#globalSearchResults {
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  max-height: 280px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.gs-row {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #1e293b;
+  font-size: 11px;
+  transition: background .1s;
+}
+.gs-row:hover { background: #1e3a5f; }
+.gs-row--table { background: #0d1f33; }
+.gs-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  background: #1e3a5f; color: #7dd3fc;
+  padding: 1px 4px; border-radius: 3px; flex-shrink: 0;
+}
+.gs-tname { color: #475569; font-size: 10px; flex-shrink: 0; white-space: nowrap; }
+.gs-name  { color: #e2e8f0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-name mark { background: #3b82f6; color: #fff; border-radius: 2px; padding: 0 1px; }
+.gs-type  { color: #64748b; font-size: 10px; flex-shrink: 0; }
+.gs-empty { padding: 10px; color: #475569; font-size: 11px; text-align: center; }
+.gs-more  { padding: 6px 10px; color: #475569; font-size: 10px; font-style: italic; }

@@ -169,7 +169,7 @@ function _jvGetExcludedTables(edges) {
   return excl;
 }
 
-function _jvToggleEdge(from, to, btn) {
+function _jvToggleEdge(from, to) {
   const key = from + '::' + to;
   if (_jvExcluded.has(key)) _jvExcluded.delete(key);
   else                       _jvExcluded.add(key);
@@ -208,6 +208,17 @@ function _jvSyncDialect(val) {
     const el = document.getElementById(id);
     if (el) el.value = val;
   });
+  try { localStorage.setItem('jv_dialect', val); } catch (_) {}
+}
+
+function _jvSetSQL(elementId, sql) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  if (window.Prism && Prism.languages && Prism.languages.sql) {
+    el.innerHTML = Prism.highlight(sql, Prism.languages.sql, 'sql');
+  } else {
+    el.textContent = sql;
+  }
 }
 
 function _jvQuote(name) {
@@ -243,6 +254,7 @@ function _jvStartResizeSql(e, handle, wrapId) {
     handle.classList.remove('dragging');
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
+    try { localStorage.setItem(wrapId === 'jvSQLWrap' ? 'jv_sql_h' : 'jv_union_sql_h', wrap.offsetHeight); } catch (_) {}
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
   }
@@ -403,7 +415,7 @@ function renderJoinView(resetState = true) {
   html += `<div class="jv-hop">
     <div class="jv-card jv-result-card" id="jvResultCard">
       <div class="jv-card-head" style="background:linear-gradient(135deg,#1e293b,#475569)">
-        Risultato&nbsp;<span class="jv-root-badge">VIEW</span>
+        Risultato&nbsp;<span class="jv-root-badge">VIEW</span>&nbsp;<span id="jvResultColCount" style="font-size:9px;opacity:.65;font-weight:400"></span>
       </div>
       <div id="jvResultBody"></div>
     </div>
@@ -418,8 +430,10 @@ function renderJoinView(resetState = true) {
   _rebuildJoinSQL();
   const sqlWrap   = document.getElementById('jvSQLWrap');
   const sqlResize = document.getElementById('jvSQLResize');
-  const wrapH     = sqlWrap.offsetHeight || 180;
-  const resizeH   = 20;
+  const savedH    = parseInt(localStorage.getItem('jv_sql_h')) || 0;
+  if (savedH) sqlWrap.style.height = savedH + 'px';
+  const wrapH   = parseInt(sqlWrap.style.height) || sqlWrap.offsetHeight || 180;
+  const resizeH = 20;
   sqlWrap.style.display   = '';
   sqlResize.style.display = '';
   sqlResize.style.bottom  = wrapH + 'px';
@@ -523,7 +537,7 @@ function _rebuildJoinSQL() {
   }
   sql += ';';
 
-  document.getElementById('jvSQLCode').textContent = sql;
+  _jvSetSQL('jvSQLCode', sql);
   _jvUpdateResultCard(aliases, visited, excl, tables);
 
   document.querySelectorAll('.jv-join-select').forEach(sel => {
@@ -537,6 +551,7 @@ function _jvUpdateResultCard(aliases, visited, excl, tables) {
   if (!body) return;
   const sorted = [...visited.entries()].sort((a, b) => a[1] - b[1]);
   let html = '';
+  let totalCols = 0;
   for (const [tbl] of sorted) {
     if (excl.has(tbl)) continue;
     const t = tables[tbl]; if (!t) continue;
@@ -547,6 +562,7 @@ function _jvUpdateResultCard(aliases, visited, excl, tables) {
     </div>`;
     for (const c of t.columns) {
       if (_jvSelectedCols[`${tbl}::${c.name}`] === false) continue;
+      totalCols++;
       html += `<div class="jv-col-row">
         <span class="jv-col-name">
           <span style="color:#94a3b8;font-size:10px;margin-right:1px">${alias}.</span>${c.name}
@@ -569,6 +585,7 @@ function _jvUpdateResultCard(aliases, visited, excl, tables) {
     </div>`;
     for (const c of t.columns) {
       if (_jvSelectedCols[`${e.to}::${c.name}`] === false) continue;
+      totalCols++;
       html += `<div class="jv-col-row">
         <span class="jv-col-name">
           <span style="color:#94a3b8;font-size:10px;margin-right:1px">${alias}.</span>${c.name}
@@ -579,6 +596,8 @@ function _jvUpdateResultCard(aliases, visited, excl, tables) {
   }
   if (!html) html = '<div class="jv-empty" style="padding:20px;font-size:11px">Nessun join attivo</div>';
   body.innerHTML = html;
+  const countEl = document.getElementById('jvResultColCount');
+  if (countEl) countEl.textContent = totalCols + ' col.';
 }
 
 function copyJoinSQL() {
@@ -673,3 +692,23 @@ function _jvDownload(filename, text) {
   a.download = filename;
   a.click();
 }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+(function _jvInit() {
+  // Restore dialect
+  try {
+    const d = localStorage.getItem('jv_dialect');
+    if (d) _jvSyncDialect(d);
+  } catch (_) {}
+
+  // Ctrl+Shift+C → copia SQL del pannello attivo
+  document.addEventListener('keydown', function(e) {
+    if (!e.ctrlKey || !e.shiftKey || e.key !== 'C') return;
+    e.preventDefault();
+    const joinActive  = document.getElementById('jv-join')?.classList.contains('active');
+    const unionActive = document.getElementById('jv-union')?.classList.contains('active');
+    if (joinActive  && document.getElementById('jvSQLWrap')?.style.display !== 'none')      copyJoinSQL();
+    if (unionActive && document.getElementById('jvUnionSQLWrap')?.style.display !== 'none') copyUnionSQL();
+  });
+})();

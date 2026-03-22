@@ -86,15 +86,17 @@ function renderUnionView() {
   const nameB = tblB.name || tB.split('.').pop();
   const sql   = `SELECT\n${selA.join(',\n')}\nFROM ${_jvQuote(nameA)}\n${_jvUnionType}\nSELECT\n${selB.join(',\n')}\nFROM ${_jvQuote(nameB)};`;
 
-  document.getElementById('jvUnionSQLCode').textContent = sql;
-  const uWrap   = document.getElementById('jvUnionSQLWrap');
-  const uResize = document.getElementById('jvUnionSQLResize');
-  const uWrapH  = uWrap.offsetHeight || 180;
+  const uWrap    = document.getElementById('jvUnionSQLWrap');
+  const uResize  = document.getElementById('jvUnionSQLResize');
+  const uSavedH  = parseInt(localStorage.getItem('jv_union_sql_h')) || 0;
+  if (uSavedH) uWrap.style.height = uSavedH + 'px';
+  const uWrapH   = parseInt(uWrap.style.height) || uWrap.offsetHeight || 180;
   const uResizeH = 20;
   uWrap.style.display   = '';
   uResize.style.display = '';
   uResize.style.bottom  = uWrapH + 'px';
   area.style.paddingBottom = (uWrapH + uResizeH) + 'px';
+  _jvSetSQL('jvUnionSQLCode', sql);
   document.getElementById('jvUnionCopyBtn').style.display   = '';
 }
 

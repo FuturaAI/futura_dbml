@@ -10,7 +10,7 @@ Object.assign(Diagram.prototype, {
    * @param {string | null} [highlightTable]
    */
   _renderConnections(highlightTable = null) {
-    this.svg.querySelectorAll('path.conn, path.conn-hit, text.conn-label').forEach(p => p.remove());
+    this.svg.querySelectorAll('path.conn, path.conn-hit, text.conn-label, g.conn-label').forEach(p => p.remove());
     const tables    = this.project.tables || {};
     const activeRef = !highlightTable ? this._activeRef : null;
 
@@ -65,6 +65,49 @@ Object.assign(Diagram.prototype, {
       this.svg.appendChild(path);
 
       const labelColor = isSel ? '#818cf8' : isHi ? '#3b82f6' : '#94a3b8';
+
+      // ── Cardinality endpoint badges ───────────────────────
+      const cardMap = { '>': ['N','1'], '<': ['1','N'], '<>': ['N','M'], '-': ['1','1'] };
+      const [fromCard, toCard] = cardMap[ref.type] || ['', ''];
+      const outward = fromPos.x <= toPos.x ? 1 : -1;  // +1 = from is left, -1 = from is right
+
+      const _makeCardBadge = (cx, cy, txt) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'conn-label');
+        g.setAttribute('pointer-events', 'none');
+        if (dimmed) g.style.opacity = '0.2';
+
+        const W = txt.length > 1 ? 18 : 14, H = 14;
+        const rx = cx - W / 2, ry = cy - H / 2 - 1;
+        const bgColor  = isSel ? '#818cf8' : isHi ? '#3b82f6' : '#64748b';
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', String(rx));
+        rect.setAttribute('y', String(ry));
+        rect.setAttribute('width',  String(W));
+        rect.setAttribute('height', String(H));
+        rect.setAttribute('rx', '3');
+        rect.setAttribute('fill', bgColor);
+
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', String(cx));
+        t.setAttribute('y', String(cy + 4));
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-family', 'ui-monospace, monospace, system-ui');
+        t.setAttribute('font-size', '10');
+        t.setAttribute('font-weight', '700');
+        t.setAttribute('fill', '#ffffff');
+
+        t.textContent = txt;
+        g.appendChild(rect);
+        g.appendChild(t);
+        return g;
+      };
+
+      // Place badges 22px outside the card edge, vertically centred on the row
+      if (fromCard) this.svg.appendChild(_makeCardBadge(x1 + outward * 22, y1, fromCard));
+      if (toCard)   this.svg.appendChild(_makeCardBadge(x2 - outward * 22, y2, toCard));
+
       const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       lbl.setAttribute('class', 'conn-label');
       lbl.setAttribute('x', String((x1 + x2) / 2));

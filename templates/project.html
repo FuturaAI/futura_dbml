@@ -55,8 +55,10 @@
 
     <div class="sidebar-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="tableSearch" placeholder="Cerca tabella..." />
+      <input type="text" id="tableSearch" placeholder="Cerca tabella o colonna…"
+             oninput="globalSearch(this.value)" />
     </div>
+    <div id="globalSearchResults" style="display:none"></div>
 
     <div class="sidebar-stats">
       <span>{{ project.tables | length }} tabelle</span>
@@ -265,6 +267,10 @@
         </button>
         <button class="zoom-btn" onclick="diagram && diagram.fitToScreen()" title="Adatta allo schermo" style="margin-left:2px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <button class="zoom-btn" id="exportPngBtn" onclick="diagram && diagram.exportPNG()" title="Esporta PNG" style="margin-left:8px;padding:0 8px;width:auto;font-size:11px;font-weight:600;gap:4px;display:flex;align-items:center">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Esporta PNG
         </button>
         <button class="zoom-btn" onclick="diagram && confirm('Reimpostare il layout? Le posizioni salvate andranno perse.') && diagram.resetLayout()" title="Reset layout" style="margin-left:2px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -515,7 +521,7 @@
           <div class="jv-scroll" id="jvGraph">
             <div class="jv-empty">Seleziona una tabella di partenza per esplorare i join</div>
           </div>
-          <div class="jv-sql-resize" id="jvSQLResize" style="display:none" onmousedown="_jvStartResizeSql(event,this,'jvSQLWrap')"></div>
+          <div class="jv-sql-resize" id="jvSQLResize" style="display:none" title="Trascina per ridimensionare" onmousedown="_jvStartResizeSql(event,this,'jvSQLWrap')"></div>
           <div class="jv-sql-wrap" id="jvSQLWrap" style="display:none">
             <div class="jv-sql-head">
               <span>SQL generato</span>
@@ -558,7 +564,7 @@
           <div class="jv-scroll" id="jvUnionGraph">
             <div class="jv-empty">Seleziona due tabelle per confrontarle con UNION</div>
           </div>
-          <div class="jv-sql-resize" id="jvUnionSQLResize" style="display:none" onmousedown="_jvStartResizeSql(event,this,'jvUnionSQLWrap')"></div>
+          <div class="jv-sql-resize" id="jvUnionSQLResize" style="display:none" title="Trascina per ridimensionare" onmousedown="_jvStartResizeSql(event,this,'jvUnionSQLWrap')"></div>
           <div class="jv-sql-wrap" id="jvUnionSQLWrap" style="display:none">
             <div class="jv-sql-head">
               <span>SQL generato</span>
@@ -605,5 +611,8 @@
 <script src="/static/js/joinview/join.js"></script>
 <script src="/static/js/joinview/views.js"></script>
 <script src="/static/js/joinview/union.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-sql.min.js"></script>
 </body>
 </html>

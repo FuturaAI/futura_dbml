@@ -95,6 +95,37 @@ Object.assign(Diagram.prototype, {
   },
 
   /**
+   * Export the full diagram as a PNG file.
+   * @this {Diagram}
+   */
+  async exportPNG() {
+    if (typeof html2canvas === 'undefined') { alert('Libreria html2canvas non disponibile'); return; }
+    const btn = document.getElementById('exportPngBtn');
+    if (btn) { btn.textContent = 'Generazione…'; btn.disabled = true; }
+    const savedTf = this.canvas.style.transform;
+    this.canvas.style.transform = 'none';
+    if (this._mmEl) this._mmEl.style.visibility = 'hidden';
+    try {
+      const cv = await html2canvas(this.canvas, {
+        backgroundColor: '#f8fafc',
+        useCORS: true,
+        scale: window.devicePixelRatio || 1,
+        width:  parseInt(this.canvas.style.width)  || this.canvas.scrollWidth,
+        height: parseInt(this.canvas.style.height) || this.canvas.scrollHeight,
+        x: 0, y: 0,
+      });
+      const a = document.createElement('a');
+      a.download = (this.project.name || 'diagramma').replace(/\s+/g, '_') + '.png';
+      a.href = cv.toDataURL('image/png');
+      a.click();
+    } finally {
+      this.canvas.style.transform = savedTf;
+      if (this._mmEl) this._mmEl.style.visibility = '';
+      if (btn) { btn.textContent = 'Esporta PNG'; btn.disabled = false; }
+    }
+  },
+
+  /**
    * Reset all table positions to the auto-layout grid.
    * @this {Diagram}
    */

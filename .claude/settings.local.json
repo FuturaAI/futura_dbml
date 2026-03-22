@@ -7,7 +7,8 @@
       "Bash(python.exe --version)",
       "Bash(py --version)",
       "Bash(py -c \":*)",
-      "Bash(wc -l c:/Users/danie/Desktop/repos/futura_dbml/static/css/*.css c:/Users/danie/Desktop/repos/futura_dbml/static/js/diagram/*.js c:/Users/danie/Desktop/repos/futura_dbml/static/js/*.js c:/Users/danie/Desktop/repos/futura_dbml/main.py c:/Users/danie/Desktop/repos/futura_dbml/parser.py c:/Users/danie/Desktop/repos/futura_dbml/models.py c:/Users/danie/Desktop/repos/futura_dbml/database.py c:/Users/danie/Desktop/repos/futura_dbml/templates/*.html)"
+      "Bash(wc -l c:/Users/danie/Desktop/repos/futura_dbml/static/css/*.css c:/Users/danie/Desktop/repos/futura_dbml/static/js/diagram/*.js c:/Users/danie/Desktop/repos/futura_dbml/static/js/*.js c:/Users/danie/Desktop/repos/futura_dbml/main.py c:/Users/danie/Desktop/repos/futura_dbml/parser.py c:/Users/danie/Desktop/repos/futura_dbml/models.py c:/Users/danie/Desktop/repos/futura_dbml/database.py c:/Users/danie/Desktop/repos/futura_dbml/templates/*.html)",
+      "Bash(python -c \"from pydbml import PyDBML; p=PyDBML\\(''Table a { id int } Table b { aid int } Ref: a.id < b.aid''\\); print\\(repr\\(p.refs[0].type\\)\\)\")"
     ]
   }
 }
