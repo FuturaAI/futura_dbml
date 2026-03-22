@@ -90,7 +90,7 @@
               <div class="project-stats">
                 {{ p.tables | length }} tabelle &middot;
                 {{ p.groups | length }} gruppi &middot;
-                {{ p.refs | length }} relazioni
+                {{ p.refs_count }} relazioni
               </div>
               {% if p.created_at %}<div class="project-date">{{ p.created_at }}</div>{% endif %}
             </div>

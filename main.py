@@ -78,7 +78,7 @@ def _to_dict_minimal(p: Project) -> dict:
         "name":       p.name,
         "tables":     json.loads(p.tables_data  or "{}"),
         "groups":     json.loads(p.groups_data  or "{}"),
-        "refs":       json.loads(p.refs_data    or "[]"),
+        "refs_count": len(json.loads(p.refs_data or "[]")),
         "created_at": p.created_at.strftime("%d/%m/%Y") if p.created_at else "",
     }
 
@@ -131,7 +131,7 @@ async def upload(
         })
 
     project = Project(
-        id             = str(uuid.uuid4())[:8],
+        id             = uuid.uuid4().hex[:12],
         name           = name.strip() or file.filename,
         tables_data    = json.dumps(parsed["tables"]),
         groups_data    = json.dumps(parsed["groups"]),
@@ -224,7 +224,7 @@ async def save_view(pid: str, request: Request, db: Session = Depends(get_db)):
     p = _get_or_404(db, pid)
     body = await request.json()
     views = json.loads(p.views_data or "[]")
-    view_id = str(uuid.uuid4())[:8]
+    view_id = uuid.uuid4().hex[:12]
     views.append({**body, "id": view_id})
     p.views_data = json.dumps(views)
     db.commit()
@@ -289,6 +289,17 @@ async def reupload_project(
     old_positions = json.loads(p.saved_positions or "{}")
     new_table_keys = set(parsed["tables"].keys())
     p.saved_positions = json.dumps({k: v for k, v in old_positions.items() if k in new_table_keys})
+    # Drop column notes for removed tables
+    old_col_notes = json.loads(p.column_notes_data or "{}")
+    p.column_notes_data = json.dumps(
+        {k: v for k, v in old_col_notes.items() if k.split("::")[0] in new_table_keys}
+    )
+    # Drop table note overrides for removed tables
+    old_table_notes = json.loads(p.table_notes_data or "{}")
+    p.table_notes_data = json.dumps({k: v for k, v in old_table_notes.items() if k in new_table_keys})
+    # Drop views whose root table no longer exists
+    old_views = json.loads(p.views_data or "[]")
+    p.views_data = json.dumps([v for v in old_views if v.get("root") in new_table_keys])
     db.commit()
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
@@ -334,6 +345,8 @@ async def import_project(
     db: Session = Depends(get_db),
 ):
     raw = await file.read()
+    if len(raw) > MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File troppo grande (max {MAX_UPLOAD_MB} MB).")
     try:
         content = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -344,21 +357,28 @@ async def import_project(
     if not row or "tables_data" not in row:
         raise HTTPException(status_code=400, detail="File CSV non valido o non riconosciuto")
 
+    def _validated_json(value: str, fallback: str) -> str:
+        try:
+            json.loads(value)
+            return value
+        except (ValueError, TypeError):
+            return fallback
+
     new_p = Project(
-        id                = str(uuid.uuid4())[:8],
+        id                = uuid.uuid4().hex[:12],
         name              = row.get("name", "Progetto importato"),
-        tables_data       = row.get("tables_data",       "{}"),
-        groups_data       = row.get("groups_data",       "{}"),
-        refs_data         = row.get("refs_data",         "[]"),
-        ungrouped_data    = row.get("ungrouped_data",    "[]"),
-        saved_positions   = row.get("saved_positions",   "{}"),
-        notes_data        = row.get("notes_data",        "[]"),
+        tables_data       = _validated_json(row.get("tables_data",       "{}"), "{}"),
+        groups_data       = _validated_json(row.get("groups_data",       "{}"), "{}"),
+        refs_data         = _validated_json(row.get("refs_data",         "[]"), "[]"),
+        ungrouped_data    = _validated_json(row.get("ungrouped_data",    "[]"), "[]"),
+        saved_positions   = _validated_json(row.get("saved_positions",   "{}"), "{}"),
+        notes_data        = _validated_json(row.get("notes_data",        "[]"), "[]"),
         markdown_notes    = row.get("markdown_notes",    ""),
-        column_notes_data = row.get("column_notes_data", "{}"),
-        enums_data        = row.get("enums_data",        "[]"),
-        views_data        = row.get("views_data",        "[]"),
-        doc_notes_data    = row.get("doc_notes_data",    "[]"),
-        table_notes_data  = row.get("table_notes_data",  "{}"),
+        column_notes_data = _validated_json(row.get("column_notes_data", "{}"), "{}"),
+        enums_data        = _validated_json(row.get("enums_data",        "[]"), "[]"),
+        views_data        = _validated_json(row.get("views_data",        "[]"), "[]"),
+        doc_notes_data    = _validated_json(row.get("doc_notes_data",    "[]"), "[]"),
+        table_notes_data  = _validated_json(row.get("table_notes_data",  "{}"), "{}"),
     )
     db.add(new_p)
     db.commit()
@@ -369,7 +389,7 @@ async def import_project(
 async def duplicate_project(pid: str, db: Session = Depends(get_db)):
     p = _get_or_404(db, pid)
     new_p = Project(
-        id                = str(uuid.uuid4())[:8],
+        id                = uuid.uuid4().hex[:12],
         name              = p.name + " (copia)",
         tables_data       = p.tables_data,
         groups_data       = p.groups_data,
