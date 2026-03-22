@@ -66,6 +66,7 @@ Object.assign(Diagram.prototype, {
         if (!this.activeTable) this._renderConnections();
       });
       card.addEventListener('click', e => { e.stopPropagation(); this.focusTable(name); });
+      card.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); this._showCtxMenu(e.clientX, e.clientY, name); });
 
       this._makeDraggable(card, name);
       this.cards[name] = card;

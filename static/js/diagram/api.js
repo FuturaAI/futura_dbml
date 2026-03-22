@@ -126,6 +126,88 @@ Object.assign(Diagram.prototype, {
   },
 
   /**
+   * Show the right-click context menu for a table card.
+   * @this {Diagram}
+   * @param {number} x
+   * @param {number} y
+   * @param {string} tableName
+   */
+  _showCtxMenu(x, y, tableName) {
+    const menu = document.getElementById('diagCtxMenu');
+    if (!menu) return;
+    menu.style.display = 'block';
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+    const r = menu.getBoundingClientRect();
+    if (r.right  > window.innerWidth)  menu.style.left = (x - r.width)  + 'px';
+    if (r.bottom > window.innerHeight) menu.style.top  = (y - r.height) + 'px';
+
+    const tbl = (this.project.tables || {})[tableName];
+    document.getElementById('ctxCopyDDL').onclick = () => {
+      menu.style.display = 'none';
+      navigator.clipboard.writeText(this._generateDDL(tableName, tbl)).catch(() => {});
+    };
+    document.getElementById('ctxIsolate').onclick = () => {
+      menu.style.display = 'none';
+      this.isolateTable(tableName);
+    };
+    document.getElementById('ctxCenter').onclick = () => {
+      menu.style.display = 'none';
+      this.focusTable(tableName);
+    };
+    document.getElementById('ctxRestoreAll').onclick = () => {
+      menu.style.display = 'none';
+      this.restoreAllTables();
+    };
+  },
+
+  /**
+   * Generate a CREATE TABLE DDL statement for a table.
+   * @this {Diagram}
+   * @param {string} tableName
+   * @param {object} tbl
+   * @returns {string}
+   */
+  _generateDDL(tableName, tbl) {
+    if (!tbl) return '';
+    const cols = tbl.columns.map(col => {
+      let def = `  ${col.name} ${col.type}`;
+      if (col.pk)                    def += ' PRIMARY KEY';
+      if (col.not_null && !col.pk)   def += ' NOT NULL';
+      if (col.unique   && !col.pk)   def += ' UNIQUE';
+      if (col.default  != null)      def += ` DEFAULT ${col.default}`;
+      return def;
+    });
+    return `CREATE TABLE ${tbl.name} (\n${cols.join(',\n')}\n);`;
+  },
+
+  /**
+   * Hide all tables except the given one.
+   * @this {Diagram}
+   * @param {string} tableName
+   */
+  isolateTable(tableName) {
+    for (const name of Object.keys(this.project.tables || {})) {
+      if (name === tableName) {
+        if (this._hiddenTables.has(name)) this.toggleTableVisibility(name);
+      } else {
+        if (!this._hiddenTables.has(name)) this.toggleTableVisibility(name);
+      }
+    }
+    this.focusTable(tableName);
+  },
+
+  /**
+   * Restore visibility of all hidden tables.
+   * @this {Diagram}
+   */
+  restoreAllTables() {
+    const hidden = [...this._hiddenTables];
+    hidden.forEach(name => this.toggleTableVisibility(name));
+    this._renderConnections();
+  },
+
+  /**
    * Reset all table positions to the auto-layout grid.
    * @this {Diagram}
    */
@@ -157,4 +239,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof PROJECT !== 'undefined') {
     diagram = new Diagram(PROJECT, 'diagramContainer');
   }
+
+  // Close context menu on click-outside or Escape
+  document.addEventListener('click', () => {
+    const m = document.getElementById('diagCtxMenu');
+    if (m) m.style.display = 'none';
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const m = document.getElementById('diagCtxMenu');
+      if (m) m.style.display = 'none';
+    }
+  });
 });
