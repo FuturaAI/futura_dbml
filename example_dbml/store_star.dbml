@@ -1,0 +1,102 @@
+// ============================================================
+// Store — Star Schema semplice
+// 1 fact table + 4 dimensioni flat
+// ============================================================
+
+TableGroup "Dimensione Temporale" {
+  date
+}
+
+TableGroup "Dimensione Geografica" {
+  geography
+}
+
+TableGroup "Dimensione Prodotto" {
+  product
+}
+
+TableGroup "Dimensione Fornitore" {
+  supplier
+}
+
+TableGroup "Tab Fatti" {
+  sales
+}
+
+// ---- DIMENSIONE TEMPORALE ----
+
+Table date [note: 'tabella del tempo'] {
+  date_key     int     [pk, note: "YYYYMMDD"]
+  full_date    date    [not null]
+  year         int     [not null]
+  quarter      int     [not null, note: "1–4"]
+  month        int     [not null, note: "1–12"]
+  month_name   varchar [not null]
+  week         int     [not null]
+  day_name     varchar [not null]
+  is_weekend   boolean [not null, default: false]
+  is_holiday   boolean [not null, default: false]
+}
+
+// ---- DIMENSIONE GEOGRAFICA ----
+
+Table geography[note: 'tabella geografica']  {
+  geo_key     int     [pk, increment]
+  // Gerarchia denormalizzata: continente → paese → regione → città
+  continent   varchar [not null]
+  country     varchar [not null]
+  country_iso varchar [not null, note: "ISO 3166-1 alpha-2"]
+  region      varchar [not null]
+  city        varchar [not null]
+  postal_code varchar
+}
+
+// ---- DIMENSIONE PRODOTTO ----
+// Gerarchia denormalizzata: reparto → categoria → sottocategoria → prodotto
+// Nessuna self-reference, query semplici, star schema puro
+
+Table product {
+  product_key     int     [pk, increment]
+  sku             varchar [not null, unique]
+  product_name    varchar [not null]
+  // Gerarchia prodotto (3 livelli flat)
+  department      varchar [not null, note: "es. Elettronica"]
+  category        varchar [not null, note: "es. Smartphone"]
+  subcategory     varchar [not null, note: "es. Android"]
+  // Attributi
+  brand           varchar [not null]
+  unit_of_measure varchar [not null, default: "pz"]
+  unit_cost       decimal [not null]
+  list_price      decimal [not null]
+  is_perishable   boolean [not null, default: false]
+}
+
+// ---- DIMENSIONE FORNITORE ----
+
+Table supplier {
+  supplier_key  int     [pk, increment]
+  supplier_code varchar [not null, unique]
+  name          varchar [not null]
+  country       varchar [not null]
+  category      varchar [note: "Tipo di fornitore: produttore / grossista / importatore"]
+  lead_time_days int    [note: "Giorni medi di consegna"]
+  is_active     boolean [not null, default: true]
+}
+
+// ---- FATTO: VENDITE ----
+
+Table sales {
+  sales_key        int     [pk, increment]
+  // Chiavi dimensionali
+  sale_date_key    int     [not null, ref: > date.date_key]
+  store_geo_key    int     [not null, ref: > geography.geo_key]
+  sold_product_key int     [not null, ref: > product.product_key]
+  source_supplier_key int  [not null, ref: > supplier.supplier_key]
+  // Misure
+  quantity         int     [not null]
+  unit_price       decimal [not null]
+  revenue          decimal [not null, note: "quantity * unit_price"]
+  cost             decimal [not null, note: "quantity * unit_cost"]
+  margin           decimal [not null, note: "revenue - cost"]
+  discount_pct     decimal [not null, default: 0]
+}

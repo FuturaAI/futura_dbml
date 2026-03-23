@@ -43,11 +43,43 @@ document.getElementById('uploadForm').addEventListener('submit', () => {
   btn.disabled = true;
 });
 
+// ── Code (SQL/ORM) import ─────────────────────────────────────────────────────
+
+function toggleCodeImport() {
+  const body = document.getElementById('codeImportBody');
+  const chev = document.querySelector('#codeImportToggle .import-chev');
+  const open = body.style.display !== 'none';
+  body.style.display   = open ? 'none' : 'block';
+  chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function setCodeFmt(fmt, btn) {
+  document.getElementById('codeFmt').value = fmt;
+  document.querySelectorAll('.code-fmt-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const placeholders = {
+    sql:        'Incolla qui il tuo CREATE TABLE SQL…',
+    prisma:     'Incolla qui il tuo schema Prisma (model / enum)…',
+    django:     'Incolla qui i tuoi modelli Django (class ... models.Model)…',
+    sqlalchemy: 'Incolla qui i tuoi modelli SQLAlchemy (class ... Base)…',
+  };
+  document.getElementById('codeContent').placeholder = placeholders[fmt] || '';
+}
+
+document.getElementById('codeImportForm').addEventListener('submit', () => {
+  const btn = document.querySelector('#codeImportForm button[type="submit"]');
+  const orig = btn.textContent;
+  btn.textContent = 'Generazione in corso…';
+  btn.disabled = true;
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 8000);
+});
+
 // ── Import dropzone ───────────────────────────────────────────────────────────
 
 function toggleImport() {
   const body = document.getElementById('importBody');
-  const chev = document.querySelector('.import-chev');
+  const chev = document.querySelector('#importToggle .import-chev');
   const open = body.style.display !== 'none';
   body.style.display   = open ? 'none' : 'block';
   chev.style.transform = open ? '' : 'rotate(180deg)';

@@ -53,11 +53,39 @@
       </form>
     </div>
 
-    <!-- Import from CSV -->
+    <!-- Import from SQL / ORM -->
+    <div class="import-card" id="codeImportCard">
+      <button class="import-toggle" onclick="toggleCodeImport()" id="codeImportToggle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Importa da SQL o ORM
+        <svg class="import-chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="import-body" id="codeImportBody" style="display:none">
+        <form action="/upload-code" method="post" id="codeImportForm">
+          <div class="form-group" style="margin-bottom:10px">
+            <label for="codeName">Nome progetto</label>
+            <input type="text" id="codeName" name="name" placeholder="es. Ecommerce, CRM, ..." />
+          </div>
+          <!-- Format tabs -->
+          <div class="code-fmt-tabs" id="codeFmtTabs">
+            <button type="button" class="code-fmt-tab active" onclick="setCodeFmt('sql',this)">SQL</button>
+            <button type="button" class="code-fmt-tab" onclick="setCodeFmt('prisma',this)">Prisma</button>
+            <button type="button" class="code-fmt-tab" onclick="setCodeFmt('django',this)">Django</button>
+            <button type="button" class="code-fmt-tab" onclick="setCodeFmt('sqlalchemy',this)">SQLAlchemy</button>
+          </div>
+          <input type="hidden" name="fmt" id="codeFmt" value="sql" />
+          <textarea name="content" id="codeContent" class="code-textarea"
+            placeholder="Incolla qui il tuo CREATE TABLE, schema Prisma o modelli ORM…" required></textarea>
+          <button type="submit" class="btn btn-import btn-block">Genera diagramma</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Import from JSON -->
     <div class="import-card" id="importCard">
       <button class="import-toggle" onclick="toggleImport()" id="importToggle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Importa progetto da backup CSV
+        Importa progetto da backup JSON
         <svg class="import-chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="import-body" id="importBody" style="display:none">
@@ -67,9 +95,9 @@
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
               <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
             </svg>
-            <p id="importDropText">Trascina il file <code>.dbmldoc.csv</code> qui<br/>o <span class="link-text">clicca per scegliere</span></p>
+            <p id="importDropText">Trascina il file <code>.dbmldoc.json</code> qui<br/>o <span class="link-text">clicca per scegliere</span></p>
             <p id="importFileName" class="file-name hidden"></p>
-            <input type="file" id="importFile" name="file" accept=".csv,.dbmldoc.csv" required class="file-input" />
+            <input type="file" id="importFile" name="file" accept=".json,.dbmldoc.json" required class="file-input" />
           </div>
           <button type="submit" class="btn btn-import btn-block" id="importBtn">Importa progetto</button>
         </form>
@@ -88,7 +116,7 @@
             <div class="project-meta">
               <div class="project-name">{{ p.name }}</div>
               <div class="project-stats">
-                {{ p.tables | length }} tabelle &middot;
+                {{ p.tables_count }} tabelle &middot;
                 {{ p.groups | length }} gruppi &middot;
                 {{ p.refs_count }} relazioni
               </div>
@@ -108,6 +136,6 @@
 
   </div>
 
-  <script src="/static/js/index.js"></script>
+  <script src="/static/js/index.js?v=4"></script>
 </body>
 </html>

@@ -1,0 +1,221 @@
+// ============================================================
+// Store — Star Schema avanzato
+// 3 fact table + 7 dimensioni flat + dimensione degenere
+// ============================================================
+
+TableGroup "Dimensione Temporale" {
+  date
+}
+
+TableGroup "Dimensione Geografica" {
+  geography
+}
+
+TableGroup "Dimensione Prodotto" {
+  product
+}
+
+TableGroup "Dimensione Fornitore" {
+  supplier
+}
+
+TableGroup "Dimensione Cliente" {
+  customer
+}
+
+TableGroup "Dimensione Canale" {
+  channel
+}
+
+TableGroup "Dimensione Promozione" {
+  promotion
+}
+
+TableGroup "Fatti Vendite" {
+  sales
+  sales_return
+}
+
+TableGroup "Fatti Inventario" {
+  inventory_snapshot
+}
+
+// ---- DIMENSIONE TEMPORALE ----
+
+Table date [note: 'Dimensione temporale — una riga per ogni giorno del calendario'] {
+  date_key       int     [pk, note: "Surrogate key formato YYYYMMDD"]
+  full_date      date    [not null]
+  year           int     [not null]
+  semester       int     [not null, note: "1 o 2"]
+  quarter        int     [not null, note: "1–4"]
+  month          int     [not null, note: "1–12"]
+  month_name     varchar [not null]
+  week           int     [not null]
+  day_name       varchar [not null]
+  day_of_week    int     [not null, note: "1=Lunedì … 7=Domenica"]
+  is_weekend     boolean [not null, default: false]
+  is_holiday     boolean [not null, default: false]
+  holiday_name   varchar
+  fiscal_year    int     [note: "Anno fiscale se diverso dal solare"]
+  fiscal_quarter int
+}
+
+// ---- DIMENSIONE GEOGRAFICA ----
+
+Table geography [note: 'Gerarchia denormalizzata: continente → paese → regione → città → negozio'] {
+  geo_key        int     [pk, increment]
+  continent      varchar [not null]
+  country        varchar [not null]
+  country_iso    varchar [not null, note: "ISO 3166-1 alpha-2"]
+  region         varchar [not null]
+  city           varchar [not null]
+  postal_code    varchar
+  store_code     varchar [not null, note: "Codice univoco del punto vendita"]
+  store_name     varchar [not null]
+  store_type     varchar [not null, note: "fisico / online / outlet / franchising"]
+  store_sqm      decimal [note: "Superficie mq — NULL per canali online"]
+  latitude       decimal
+  longitude      decimal
+}
+
+// ---- DIMENSIONE PRODOTTO ----
+// Gerarchia denormalizzata: reparto → categoria → sottocategoria → prodotto
+
+Table product [note: 'SCD Tipo 1 — sovrascrittura diretta degli attributi'] {
+  product_key     int     [pk, increment]
+  sku             varchar [not null, unique]
+  product_name    varchar [not null]
+  department      varchar [not null, note: "es. Elettronica"]
+  category        varchar [not null, note: "es. Smartphone"]
+  subcategory     varchar [not null, note: "es. Android"]
+  brand           varchar [not null]
+  unit_of_measure varchar [not null, default: "pz"]
+  unit_cost       decimal [not null]
+  list_price      decimal [not null]
+  weight_kg       decimal
+  is_perishable   boolean [not null, default: false]
+  is_active       boolean [not null, default: true]
+}
+
+// ---- DIMENSIONE FORNITORE ----
+
+Table supplier [note: 'Fornitori e produttori — SCD Tipo 1'] {
+  supplier_key   int     [pk, increment]
+  supplier_code  varchar [not null, unique]
+  name           varchar [not null]
+  country        varchar [not null]
+  country_iso    varchar [not null, note: "ISO 3166-1 alpha-2"]
+  category       varchar [note: "produttore / grossista / importatore / dropshipper"]
+  lead_time_days int     [note: "Giorni medi di consegna"]
+  payment_terms  varchar [note: "es. Net30, Net60"]
+  is_active      boolean [not null, default: true]
+}
+
+// ---- DIMENSIONE CLIENTE ----
+
+Table customer [note: 'SCD Tipo 2 — traccia variazioni di segmento e indirizzo'] {
+  customer_key      int     [pk, increment]
+  customer_id       varchar [not null, note: "Chiave naturale (ID CRM)"]
+  first_name        varchar
+  last_name         varchar
+  email             varchar
+  segment           varchar [not null, note: "Bronze / Silver / Gold / Platinum"]
+  country           varchar [not null]
+  city              varchar [not null]
+  registration_date date    [not null]
+  birth_year        int
+  gender            varchar
+  // SCD Tipo 2
+  valid_from        date    [not null]
+  valid_to          date    [note: "NULL = record corrente"]
+  is_current        boolean [not null, default: true]
+}
+
+// ---- DIMENSIONE CANALE ----
+
+Table channel [note: 'Canale di vendita — stabile, poche righe'] {
+  channel_key  int     [pk, increment]
+  channel_code varchar [not null, unique]
+  name         varchar [not null, note: "cassa / e-commerce / app / telefono / marketplace"]
+  is_digital   boolean [not null, default: false]
+}
+
+// ---- DIMENSIONE PROMOZIONE ----
+
+Table promotion [note: 'NULL-safe: una riga speciale "Nessuna promozione" per evitare outer join'] {
+  promotion_key  int     [pk, increment]
+  promotion_code varchar [not null, unique]
+  name           varchar [not null]
+  promo_type     varchar [not null, note: "sconto % / 2x1 / coupon / bundle / cashback"]
+  discount_pct   decimal [not null, default: 0]
+  min_quantity   int
+  min_spend      decimal
+  is_combinable  boolean [not null, default: false]
+  start_date_key int     [not null, ref: > date.date_key]
+  end_date_key   int     [not null, ref: > date.date_key]
+}
+
+// ---- FATTO: VENDITE ----
+
+Table sales [note: 'Granularità: una riga per ogni riga di scontrino'] {
+  sales_key           int     [pk, increment]
+  // Chiavi dimensionali
+  sale_date_key       int     [not null, ref: > date.date_key]
+  store_geo_key       int     [not null, ref: > geography.geo_key]
+  sold_product_key    int     [not null, ref: > product.product_key]
+  source_supplier_key int     [not null, ref: > supplier.supplier_key]
+  buyer_customer_key  int     [ref: > customer.customer_key, note: "NULL = cliente anonimo"]
+  sale_channel_key    int     [not null, ref: > channel.channel_key]
+  applied_promo_key   int     [not null, ref: > promotion.promotion_key, note: "FK a riga 'Nessuna promozione' se assente"]
+  // Dimensione degenere (nessuna tabella dedicata)
+  receipt_number      varchar [not null, note: "Numero scontrino — dimensione degenere"]
+  // Misure additive
+  quantity            int     [not null]
+  unit_price          decimal [not null]
+  unit_cost           decimal [not null]
+  gross_revenue       decimal [not null, note: "quantity * unit_price"]
+  discount_amount     decimal [not null, default: 0]
+  net_revenue         decimal [not null, note: "gross_revenue - discount_amount"]
+  cogs                decimal [not null, note: "quantity * unit_cost"]
+  gross_margin        decimal [not null, note: "net_revenue - cogs"]
+}
+
+// ---- FATTO: RESI ----
+
+Table sales_return [note: 'Granularità: una riga per ogni prodotto reso — misure con segno negativo per additività'] {
+  return_key              int     [pk, increment]
+  // Chiavi dimensionali
+  return_date_key         int     [not null, ref: > date.date_key]
+  return_store_geo_key    int     [not null, ref: > geography.geo_key]
+  returned_product_key    int     [not null, ref: > product.product_key]
+  returning_customer_key  int     [ref: > customer.customer_key]
+  return_channel_key      int     [not null, ref: > channel.channel_key]
+  // Collegamento alla vendita originale
+  original_sales_key      int     [ref: > sales.sales_key, note: "NULL se scontrino non disponibile"]
+  // Dimensione degenere
+  return_reason           varchar [not null, note: "difettoso / cambio taglia / non gradito / errore ordine"]
+  // Misure (valori positivi — il segno negativo è applicato a livello di report)
+  returned_quantity       int     [not null]
+  refund_amount           decimal [not null]
+  restocking_cost         decimal [not null, default: 0]
+}
+
+// ---- FATTO: INVENTARIO ----
+
+Table inventory_snapshot [note: 'Granularità: una riga per prodotto × negozio × giorno — fatto periodico'] {
+  snapshot_key        int     [pk, increment]
+  // Chiavi dimensionali
+  snapshot_date_key   int     [not null, ref: > date.date_key]
+  location_geo_key    int     [not null, ref: > geography.geo_key]
+  stocked_product_key int     [not null, ref: > product.product_key]
+  stocked_by_supplier int     [ref: > supplier.supplier_key]
+  // Misure semi-additive (sommabili per prodotto/negozio, NON nel tempo)
+  qty_on_hand         int     [not null]
+  qty_reserved        int     [not null, default: 0]
+  qty_in_transit      int     [not null, default: 0]
+  qty_available       int     [not null, note: "qty_on_hand - qty_reserved"]
+  reorder_point       int
+  days_of_supply      decimal [note: "Giorni stimati prima dell'esaurimento"]
+  unit_cost           decimal [not null, note: "Costo unitario al momento dello snapshot"]
+  inventory_value     decimal [not null, note: "qty_on_hand * unit_cost"]
+}

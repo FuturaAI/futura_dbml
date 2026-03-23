@@ -169,7 +169,7 @@
     <div class="sidebar-footer">
       <a href="/project/{{ project.id }}/export" class="btn-sidebar-action" style="text-decoration:none; margin-bottom:6px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Esporta backup (CSV)
+        Esporta backup (JSON)
       </a>
       <form action="/project/{{ project.id }}/reupload" method="post"
             enctype="multipart/form-data" id="reuploadForm">
@@ -278,6 +278,9 @@
         <button class="zoom-btn" id="exportPngBtn" onclick="diagram && diagram.exportPNG()" title="Esporta PNG" style="margin-left:8px;padding:0 8px;width:auto;font-size:11px;font-weight:600;gap:4px;display:flex;align-items:center">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Esporta PNG
+        </button>
+        <button class="zoom-btn" id="connToggleBtn" onclick="toggleConnections(this)" title="Mostra/nascondi collegamenti" style="margin-left:8px;width:28px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </button>
         <button class="zoom-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Tema chiaro/scuro" style="margin-left:8px;width:28px">
           <svg id="themeIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -620,6 +623,15 @@
 
 <script>
   const PROJECT = {{ project_json | safe }};
+
+  function toggleConnections(btn) {
+    const svg = document.querySelector('.connections-svg');
+    if (!svg) return;
+    const hide = svg.style.display !== 'none';
+    svg.style.display = hide ? 'none' : '';
+    btn.style.opacity = hide ? '0.4' : '1';
+    btn.title = hide ? 'Mostra collegamenti' : 'Nascondi collegamenti';
+  }
 </script>
 <script src="/static/js/diagram/types.js"></script>
 <script src="/static/js/diagram/constants.js"></script>
@@ -627,7 +639,7 @@
 <script src="/static/js/diagram/layout.js"></script>
 <script src="/static/js/diagram/groups.js"></script>
 <script src="/static/js/diagram/cards.js?v=3"></script>
-<script src="/static/js/diagram/connections.js"></script>
+<script src="/static/js/diagram/connections.js?v=2"></script>
 <script src="/static/js/diagram/drag.js"></script>
 <script src="/static/js/diagram/notes.js"></script>
 <script src="/static/js/diagram/history.js"></script>

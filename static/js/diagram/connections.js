@@ -13,6 +13,7 @@ Object.assign(Diagram.prototype, {
     this.svg.querySelectorAll('path.conn, path.conn-hit, text.conn-label, g.conn-label').forEach(p => p.remove());
     const tables    = this.project.tables || {};
     const activeRef = !highlightTable ? this._activeRef : null;
+    const isDark    = document.documentElement.dataset.theme === 'dark';
 
     (this.project.refs || []).forEach(ref => {
       const fromTbl = tables[ref.from_table];
@@ -48,7 +49,7 @@ Object.assign(Diagram.prototype, {
       const isHi = highlightTable != null &&
         (ref.from_table === highlightTable || ref.to_table === highlightTable);
 
-      let stroke = '#cbd5e1', strokeW = '1.5', marker = 'url(#arr)';
+      let stroke = isDark ? '#475569' : '#cbd5e1', strokeW = '1.5', marker = 'url(#arr)';
       if (isSel)      { stroke = '#818cf8'; strokeW = '2.5'; marker = 'url(#arr-sel)'; }
       else if (isHi)  { stroke = '#3b82f6'; strokeW = '2';   marker = 'url(#arr-hi)';  }
 
@@ -79,7 +80,7 @@ Object.assign(Diagram.prototype, {
 
         const W = txt.length > 1 ? 18 : 14, H = 14;
         const rx = cx - W / 2, ry = cy - H / 2 - 1;
-        const bgColor  = isSel ? '#818cf8' : isHi ? '#3b82f6' : '#64748b';
+        const bgColor  = isSel ? '#818cf8' : isHi ? '#3b82f6' : (isDark ? '#475569' : '#64748b');
 
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', String(rx));
@@ -116,7 +117,7 @@ Object.assign(Diagram.prototype, {
       lbl.setAttribute('font-family', 'ui-monospace, monospace, system-ui');
       lbl.setAttribute('font-size', '10');
       lbl.setAttribute('fill', labelColor);
-      lbl.setAttribute('stroke', '#f1f5f9');
+      lbl.setAttribute('stroke', isDark ? '#0d1421' : '#f1f5f9');
       lbl.setAttribute('stroke-width', '3');
       lbl.setAttribute('paint-order', 'stroke');
       lbl.setAttribute('pointer-events', 'none');

@@ -51,8 +51,31 @@
 .import-drop.has-file { border-color: #22c55e; background: #f0fdf4; }
 .import-drop p { font-size: 13px; margin-top: 8px; }
 .import-drop code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
-.btn-import { background: #3b82f6; }
+.btn-import { background: #3b82f6; color: #fff; }
 .btn-import:hover { background: #2563eb; }
+
+/* Code import — format tabs + textarea */
+.code-fmt-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.code-fmt-tab {
+  padding: 5px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  border: 1.5px solid var(--border); background: #f8fafc; color: var(--text-muted);
+  cursor: pointer; transition: background .12s, border-color .12s, color .12s;
+}
+.code-fmt-tab:hover { background: #f1f5f9; color: var(--text); }
+.code-fmt-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.code-textarea {
+  width: 100%; min-height: 180px; max-height: 400px;
+  padding: 12px 14px; font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 13px;
+  border: 1.5px solid var(--border); border-radius: 8px;
+  background: #f8fafc; color: var(--text);
+  resize: vertical; outline: none; transition: border-color .15s;
+  box-sizing: border-box;
+}
+.code-textarea:focus { border-color: var(--accent); background: #fff; }
 
 /* Upload card */
 .upload-card {

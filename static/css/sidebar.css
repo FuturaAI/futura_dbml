@@ -254,6 +254,9 @@
 }
 .fk-tooltip-arrow { color: #818cf8; margin-right: 5px; }
 .fk-tooltip-col   { color: #4f46e5; }
+[data-theme="dark"] .fk-tooltip { background: #1e293b; border-color: #4f46e5; color: #a5b4fc; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+[data-theme="dark"] .fk-tooltip-arrow { color: #818cf8; }
+[data-theme="dark"] .fk-tooltip-col   { color: #a5b4fc; }
 
 @keyframes fkPulse {
   0%   { background: rgba(99,102,241,.45); }
