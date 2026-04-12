@@ -1,0 +1,27 @@
+services:
+  # Type: Web Service
+  - type: web
+    name: futura-dbml-dev
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    # Auto-deploy on git push
+    autoDeploy: true
+
+    # Environment variables (definire anche nella dashboard Render)
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13
+
+      # Database - produzione usa PostgreSQL
+      - key: DATABASE_URL
+        sync: false  # Da definire manualmente nella dashboard
+
+      - key: PORT
+        value: 8000
+
+    # Health check
+    healthCheckPath: /
